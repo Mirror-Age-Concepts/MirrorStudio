@@ -6,8 +6,6 @@
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\MirrorStudio.Video\MirrorStudio.Video.csproj" />
-    <ProjectReference Include="..\MirrorStudio.Timeline\MirrorStudio.Timeline.csproj" />
     <ProjectReference Include="..\MirrorStudio.Core\MirrorStudio.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
