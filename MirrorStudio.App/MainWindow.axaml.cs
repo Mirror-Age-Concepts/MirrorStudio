@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using MirrorStudio.App.Services;
 using MirrorStudio.App.Workspaces;
 using MirrorStudio.Project;
 
@@ -11,6 +12,8 @@ namespace MirrorStudio.App
         private readonly ProjectService _projectService = new();
         private readonly RecentProjectsService _recents = new();
         private readonly AppSettingsService _settingsService = new();
+        private readonly DialogService _dialogs;
+        private readonly ProjectDialogService _projectDialogs;
 
         private readonly HomeView _homeWorkspace;
         private readonly VideoStudioView _videoWorkspace;
@@ -25,6 +28,8 @@ namespace MirrorStudio.App
             ProjectService.EnsureWorkspaceFolders();
             _session.SetSettings(_settingsService.Load());
             ThemeManager.Apply(_session.Settings.Theme);
+            _dialogs = new DialogService(this);
+            _projectDialogs = new ProjectDialogService(_dialogs);
 
             _homeWorkspace = new HomeView(_session)
             {
@@ -42,6 +47,19 @@ namespace MirrorStudio.App
 
             _session.ProjectChanged += () => Avalonia.Threading.Dispatcher.UIThread.Post(UpdateProjectBadge);
 
+            // Milestone 7 §16: debounced auto-save → MyFilm.autosave
+            _autosaveTimer = new Avalonia.Threading.DispatcherTimer
+            {
+                Interval = System.TimeSpan.FromSeconds(5)
+            };
+            _autosaveTimer.Tick += async (_, _) =>
+            {
+                _autosaveTimer.Stop();
+                if (_session.CurrentProject is { } p && !_suppressAutosave)
+                    await _recovery.WriteAutosaveAsync(p);
+            };
+            _session.ProjectChanged += KickAutosave;
+
             AddKeyBinding(Avalonia.Input.Key.D1, Avalonia.Input.KeyModifiers.Alt, () => Show(WorkspaceKind.Home));
             AddKeyBinding(Avalonia.Input.Key.D2, Avalonia.Input.KeyModifiers.Alt, () => Show(WorkspaceKind.Video));
             AddKeyBinding(Avalonia.Input.Key.D3, Avalonia.Input.KeyModifiers.Alt, () => Show(WorkspaceKind.Image));
@@ -50,6 +68,51 @@ namespace MirrorStudio.App
             AddKeyBinding(Avalonia.Input.Key.D6, Avalonia.Input.KeyModifiers.Alt, () => Show(WorkspaceKind.Export));
 
             Show(WorkspaceKind.Home);
+            _ = OfferProjectRecoveryAsync();
+        }
+
+        // ---------- auto-save & recovery (Milestone 7 §16) ----------
+
+        private readonly MirrorStudio.Project.Services.ProjectRecoveryService _recovery = new();
+        private readonly Avalonia.Threading.DispatcherTimer _autosaveTimer;
+        private bool _suppressAutosave;
+
+        private void KickAutosave()
+        {
+            _autosaveTimer.Stop();
+            _autosaveTimer.Start();
+        }
+
+        /// <summary>On startup: detect *.autosave files and offer "Recover MyFilm?".</summary>
+        private async System.Threading.Tasks.Task OfferProjectRecoveryAsync()
+        {
+            var candidates = _recovery.FindRecoveryCandidates();
+            foreach (var (name, path) in candidates)
+            {
+                var recover = await MessageBox.ShowConfirm(this,
+                    "Project Recovery",
+                    $"An auto-saved copy of \"{name}\" was found.\n\nRecover {name}?");
+                try
+                {
+                    if (recover)
+                    {
+                        var project = await _recovery.LoadRecoveryAsync(path);
+                        if (project != null)
+                        {
+                            _suppressAutosave = true;
+                            _session.SetProject(project,
+                                System.IO.Path.Combine(ProjectService.ProjectsRoot, project.Name));
+                            Show(WorkspaceKind.Video);
+                            StatusText.Text = $"Recovered: {project.Name}";
+                        }
+                    }
+                }
+                finally
+                {
+                    _recovery.DiscardRecovery(path);
+                    _suppressAutosave = false;
+                }
+            }
         }
 
         private void AddKeyBinding(Avalonia.Input.Key key, Avalonia.Input.KeyModifiers mods, System.Action run) =>
@@ -119,13 +182,31 @@ namespace MirrorStudio.App
         private string EditTarget =>
             _session.HasProject ? $"{_currentKind} workspace" : "Home (no project open)";
 
-        private void OnEditUndo(object? sender, RoutedEventArgs e) =>
+        private void OnEditUndo(object? sender, RoutedEventArgs e)
+        {
+            if (_currentKind == WorkspaceKind.Video && _session.HasProject)
+            {
+                StatusText.Text = _videoWorkspace.UndoEdit()
+                    ? "Undo applied."
+                    : "Nothing to undo.";
+                return;
+            }
             StatusText.Text = _session.HasProject
-                ? "Nothing to undo."
+                ? "Undo is available in the Video studio."
                 : "Undo: nothing to undo on Home.";
+        }
 
-        private void OnEditRedo(object? sender, RoutedEventArgs e) =>
-            StatusText.Text = "Nothing to redo.";
+        private void OnEditRedo(object? sender, RoutedEventArgs e)
+        {
+            if (_currentKind == WorkspaceKind.Video && _session.HasProject)
+            {
+                StatusText.Text = _videoWorkspace.RedoEdit()
+                    ? "Redo applied."
+                    : "Nothing to redo.";
+                return;
+            }
+            StatusText.Text = "Redo is available in the Video studio.";
+        }
 
         private void OnEditCut(object? sender, RoutedEventArgs e) => DoEditCommand("Cut");
         private void OnEditCopy(object? sender, RoutedEventArgs e) => DoEditCommand("Copy");
@@ -413,16 +494,7 @@ namespace MirrorStudio.App
                 return;
             }
 
-            var dlg = new SaveFileDialog
-            {
-                Title = "Save Project As",
-                InitialFileName = Sanitize(_session.CurrentProject!.Name) + ".msp",
-                Filters =
-                {
-                    new FileDialogFilter { Name = "Mirror Studio Project", Extensions = { "msp" } }
-                }
-            };
-            var mspPath = await dlg.ShowAsync(this);
+            var mspPath = await _projectDialogs.SaveProjectBundleAsync(Sanitize(_session.CurrentProject!.Name));
             if (string.IsNullOrWhiteSpace(mspPath)) return;
 
             if (!mspPath.EndsWith(".msp", System.StringComparison.OrdinalIgnoreCase))
@@ -586,17 +658,8 @@ namespace MirrorStudio.App
 
         private async System.Threading.Tasks.Task OpenProjectDialogAsync()
         {
-            var dlg = new OpenFileDialog
-            {
-                Title = "Open Project",
-                AllowMultiple = false
-            };
-
-            var result = await dlg.ShowAsync(this);
-            if (result != null && result.Length > 0)
-            {
-                OpenProjectFromPath(result[0]);
-            }
+            var path = await _projectDialogs.OpenProjectAsync();
+            if (!string.IsNullOrWhiteSpace(path)) OpenProjectFromPath(path);
         }
 
         private void OnExit(object? sender, RoutedEventArgs e)

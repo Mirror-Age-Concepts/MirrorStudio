@@ -8,6 +8,9 @@ public interface IPlaybackEngine
 
     double CurrentTime { get; }
 
+    /// <summary>Project frame rate driving the playback clock.</summary>
+    double FrameRate { get; set; }
+
     Task PlayAsync();
 
     void Pause();

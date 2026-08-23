@@ -78,6 +78,9 @@ namespace MirrorStudio.App.Workspaces
         public ViewModels.MainWindowViewModel PlaybackVm { get; } = new();
         private Services.AvaloniaPreviewRenderer? _previewRenderer;
 
+        // Milestone 7: canonical editing history (MirrorStudio.Core.Commands)
+        private readonly MirrorStudio.Core.Commands.CommandManager _undo = new();
+
         /// <summary>All snap candidates: other clips' edges, playhead and timeline start.</summary>
         private double[] SnapPoints(ClipModel? exclude)
         {
@@ -126,6 +129,9 @@ namespace MirrorStudio.App.Workspaces
             StageBorder.AddHandler(DragDrop.DragOverEvent, OnPreviewDragOver);
             StageBorder.AddHandler(DragDrop.DropEvent, OnPreviewDrop);
 
+            // keyboard shortcuts (Space/J/K/L/S/I/O/Delete/arrows/Home/End)
+            this.AddHandler(KeyDownEvent, OnEditorKeyDown, RoutingStrategies.Tunnel);
+
             DetachAllHandlers();
             AttachInspectorHandlers();
 
@@ -136,9 +142,17 @@ namespace MirrorStudio.App.Workspaces
 
         private void OnProjectChangedInternal()
         {
+            // clear undo history when the underlying project changes identity
+            if (!ReferenceEquals(_loadedProjectForUndo, _session.CurrentProject))
+            {
+                _loadedProjectForUndo = _session.CurrentProject;
+                _undo.Clear();
+            }
             if (!Dispatcher.UIThread.CheckAccess()) { Dispatcher.UIThread.Post(RefreshProjectState); return; }
             RefreshProjectState();
         }
+
+        private MirrorStudio.Core.Models.ProjectModel? _loadedProjectForUndo;
 
         private void RefreshProjectState()
         {
@@ -453,11 +467,9 @@ namespace MirrorStudio.App.Workspaces
                 return;
             }
 
-            var dlg = new OpenFileDialog { AllowMultiple = true };
-            dlg.Filters.Add(new FileDialogFilter { Name = "Media", Extensions = new List<string>(
-                VideoExts.Concat(AudioExts).Concat(ImageExts).Concat(GraphicExts).Select(x => x.TrimStart('.')).Distinct()) });
-
-            var files = await dlg.ShowAsync(TopLevel.GetTopLevel(this) as Window);
+            var dialogs = new Services.DialogService(TopLevel.GetTopLevel(this) as Window
+                ?? throw new InvalidOperationException("Video studio is not attached to a window."));
+            var files = await new Services.ProjectDialogService(dialogs).ImportMediaAsync();
             if (files == null || files.Length == 0) return;
 
             // full import workflow: validation → copy → FFprobe → thumbnail → MediaEntry
@@ -544,7 +556,7 @@ namespace MirrorStudio.App.Workspaces
                 InPoint = 0,
                 OutPoint = duration
             };
-            tl.Clips.Add(clip);
+            _undo.Execute(new Services.AddClipCommand(tl, clip));   // undoable
             _session.SetPlayhead(clip.StartTime);
             _session.SelectClip(clip);
         }
@@ -627,6 +639,24 @@ namespace MirrorStudio.App.Workspaces
                         : VideoRows + Math.Clamp(clip.TrackIndex, 0, 3);
 
                     var selected = ReferenceEquals(clip, _session.SelectedClip);
+                    var handleColor = new SolidColorBrush(Color.Parse(selected ? "#CCFFFFFF" : "#55FFFFFF"));
+
+                    // spec M7 §11: visible left/right trim handles at the clip edges
+                    var leftHandle = new Rectangle
+                    {
+                        Width = 6,
+                        Fill = handleColor,
+                        IsHitTestVisible = false,
+                        Cursor = new Cursor(StandardCursorType.SizeWestEast)
+                    };
+                    var rightHandle = new Rectangle
+                    {
+                        Width = 6,
+                        Fill = handleColor,
+                        IsHitTestVisible = false,
+                        Cursor = new Cursor(StandardCursorType.SizeWestEast)
+                    };
+
                     var border = new Border
                     {
                         Height = TrackHeight - 6,
@@ -639,16 +669,29 @@ namespace MirrorStudio.App.Workspaces
                         BorderBrush = selected ? Brushes.White : new SolidColorBrush(Color.Parse("#FF444444")),
                         Tag = clip,
                         Cursor = new Cursor(StandardCursorType.SizeAll),
-                        Child = new TextBlock
+                        Child = new Grid
                         {
-                            Text = clip.DisplayName,
-                            Foreground = Brushes.White,
-                            FontSize = 10,
-                            Margin = new Thickness(4, 1, 4, 1),
-                            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                            TextTrimming = TextTrimming.CharacterEllipsis
+                            ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"),
+                            Children =
+                            {
+                                leftHandle,
+                                new TextBlock
+                                {
+                                    Text = clip.DisplayName,
+                                    Foreground = Brushes.White,
+                                    FontSize = 10,
+                                    Margin = new Thickness(4, 1, 4, 1),
+                                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                                    TextTrimming = TextTrimming.CharacterEllipsis
+                                },
+                                rightHandle
+                            }
                         }
                     };
+
+                    Grid.SetColumn(leftHandle, 0);
+                    Grid.SetColumn((TextBlock)((Grid)border.Child!).Children[1], 1);
+                    Grid.SetColumn(rightHandle, 2);
 
                     border.PointerPressed += OnClipPointerPressed;
                     border.PointerMoved += OnClipPointerMoved;
@@ -879,6 +922,12 @@ namespace MirrorStudio.App.Workspaces
                 // trim already applied live; clamp final values and finish
                 if (tl != null)
                 {
+                    _undo.Push(new Services.TrimClipCommand(_dragClip,
+                        _trimOrigStart, _trimOrigDuration, _trimOrigIn, _trimOrigOut,
+                        _dragClip.StartTime,
+                        Math.Max(0.1, _dragClip.Duration),
+                        _dragClip.InPoint,
+                        Math.Max(_dragClip.InPoint + 0.1, _dragClip.OutPoint)));
                     _dragClip.Duration = Math.Max(0.1, _dragClip.Duration);
                     _dragClip.OutPoint = Math.Max(_dragClip.InPoint + 0.1, _dragClip.OutPoint);
                     _session.SelectClip(_dragClip);
@@ -932,6 +981,8 @@ namespace MirrorStudio.App.Workspaces
                     }
                     else
                     {
+                        _undo.Push(new Services.MoveClipCommand(_dragClip,
+                            _dragOrigStart, _dragOrigTrack, _dragClip.StartTime, _dragClip.TrackIndex));
                         _session.SelectClip(_dragClip);
                     }
                 }
@@ -997,7 +1048,7 @@ namespace MirrorStudio.App.Workspaces
             }
             clip.StartTime = pos;
 
-            tl.Clips.Add(clip);
+            _undo.Execute(new Services.AddClipCommand(tl, clip));   // undoable
             _session.SetPlayhead(clip.StartTime);
             _session.SelectClip(clip);
             RebuildTimeline();
@@ -1032,8 +1083,16 @@ namespace MirrorStudio.App.Workspaces
             }
             if (target == null) return;
 
+            double origStart = target.StartTime, origDur = target.Duration;
+            double origIn = target.InPoint, origOut = target.OutPoint;
+
             var right = TimelineEngine.SplitAt(tl, target, _session.PlayheadSeconds);
-            if (right != null) _session.SelectClip(right);
+            if (right != null)
+            {
+                _undo.Push(new Services.SplitClipCommand(tl, target, right,
+                    origStart, origDur, origIn, origOut));   // engine already applied it
+                _session.SelectClip(right);
+            }
             else RebuildTimeline();
         }
 
@@ -1043,7 +1102,7 @@ namespace MirrorStudio.App.Workspaces
             var clip = _session.SelectedClip;
             if (tl == null || clip == null) return;
             bool ripple = RippleChk?.IsChecked == true;
-            TimelineEngine.Delete(tl, clip, ripple);
+            _undo.Execute(new Services.DeleteClipCommand(tl, clip, ripple));
             _session.SelectClip(null);
         }
 
@@ -1236,7 +1295,7 @@ namespace MirrorStudio.App.Workspaces
                     var entry = (_session.CurrentProject?.Media ?? new List<MediaEntry>())
                         .FirstOrDefault(m => m.RelativePath == active.SourcePath);
                     if (entry is { Height: > 0 })
-                        decodeHeight = _previewQuality.DecodeHeight(entry.Height);
+                        decodeHeight = MirrorStudio.Core.Enums.PreviewQualityExtensions.DecodeHeight(_previewQuality, entry.Height);
 
                     bmp = GetOrRequestVideoFrame(srcPath!, sourceTime, decodeHeight);
                 }
@@ -1670,16 +1729,163 @@ namespace MirrorStudio.App.Workspaces
             var clip = _session.SelectedClip;
             if (clip == null || PosXB == null) return;
 
-            clip.PositionX = Num(PosXB); clip.PositionY = Num(PosYB);
-            clip.ScaleX = Num(ScaleXB); clip.ScaleY = Num(ScaleYB);
-            clip.Rotation = Num(RotB);
-            clip.Opacity = OpacitySlider.Value;
-            clip.Volume = VolSlider.Value; clip.Pan = PanSlider.Value;
-            clip.GainDb = Num(GainDbB); clip.FadeIn = Num(FadeInB); clip.FadeOut = Num(FadeOutB);
-            clip.IsMuted = MuteChk.IsChecked == true; clip.IsSolo = SoloChk.IsChecked == true;
+            // snapshot → apply → record as one undoable step
+            var cmd = new Services.PropertySetCommand(clip)
+                .Track(nameof(ClipModel.PositionX), clip.PositionX, Num(PosXB))
+                .Track(nameof(ClipModel.PositionY), clip.PositionY, Num(PosYB))
+                .Track(nameof(ClipModel.ScaleX), clip.ScaleX, Num(ScaleXB))
+                .Track(nameof(ClipModel.ScaleY), clip.ScaleY, Num(ScaleYB))
+                .Track(nameof(ClipModel.Rotation), clip.Rotation, Num(RotB))
+                .Track(nameof(ClipModel.Opacity), clip.Opacity, OpacitySlider.Value)
+                .Track(nameof(ClipModel.Volume), clip.Volume, VolSlider.Value)
+                .Track(nameof(ClipModel.Pan), clip.Pan, PanSlider.Value)
+                .Track(nameof(ClipModel.GainDb), clip.GainDb, Num(GainDbB))
+                .Track(nameof(ClipModel.FadeIn), clip.FadeIn, Num(FadeInB))
+                .Track(nameof(ClipModel.FadeOut), clip.FadeOut, Num(FadeOutB))
+                .TrackFlag(nameof(ClipModel.IsMuted), clip.IsMuted, MuteChk.IsChecked == true)
+                .TrackFlag(nameof(ClipModel.IsSolo), clip.IsSolo, SoloChk.IsChecked == true);
+
+            cmd.Execute();
+            if (cmd.HasChanges) _undo.Push(cmd);
 
             RenderPreviewFrame();
         }
+
+        // ---------- keyboard shortcuts (professional JKL editing) ----------
+
+        private static bool IsTextEntryFocus(Avalonia.Input.IInputElement? c) =>
+            c is TextBox or NumericUpDown or ComboBox or AutoCompleteBox;
+
+        private void OnEditorKeyDown(object? sender, KeyEventArgs e)
+        {
+            if (IsTextEntryFocus(TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement())) return;
+            if (_pressEntry != null) return;   // mid library-drag
+
+            var tl = Tl;
+            double fps = Math.Max(1, _session.CurrentProject?.FrameRate ?? 30);
+
+            // undo/redo first — Ctrl+Z, Ctrl+Shift+Z (and Ctrl+Y)
+            if (e.Key == Key.Z && e.KeyModifiers.HasFlag(KeyModifiers.Control))
+            {
+                if (e.KeyModifiers.HasFlag(KeyModifiers.Shift)) RedoEdit();
+                else UndoEdit();
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.Y && e.KeyModifiers.HasFlag(KeyModifiers.Control))
+            {
+                RedoEdit();
+                e.Handled = true;
+                return;
+            }
+
+            switch (e.Key)
+            {
+                case Key.Space:
+                    OnPlayPause(this, new RoutedEventArgs());
+                    break;
+
+                case Key.K:   // pause
+                    StopPlayback();
+                    break;
+
+                case Key.J:   // reverse shuttle: jump back 1s
+                    StopPlayback();
+                    _session.MovePlayhead(-1.0);
+                    break;
+
+                case Key.L:   // forward shuttle: jump forward 1s
+                    StopPlayback();
+                    _session.MovePlayhead(+1.0);
+                    break;
+
+                case Key.S:
+                    SplitAtPlayhead();
+                    break;
+
+                case Key.Delete:
+                case Key.Back:
+                    if (_session.SelectedClip != null) OnDeleteClip(this, new RoutedEventArgs());
+                    break;
+
+                case Key.Left:
+                    StopPlayback();
+                    _session.MovePlayhead(-1.0 / fps);
+                    _ = Playback.PreviousFrameAsync();
+                    break;
+
+                case Key.Right:
+                    StopPlayback();
+                    _session.MovePlayhead(1.0 / fps);
+                    _ = Playback.NextFrameAsync();
+                    break;
+
+                case Key.Home:
+                    _session.SetPlayhead(0);
+                    break;
+
+                case Key.End:
+                    _session.SetPlayhead(tl?.SequenceDuration ?? 0);
+                    break;
+
+                case Key.I when e.KeyModifiers == KeyModifiers.None && _session.SelectedClip is { } cin:
+                {
+                    // set in-point at playhead (trim from the left)
+                    double t = Math.Clamp(_session.PlayheadSeconds,
+                        cin.StartTime + 0.05, cin.StartTime + cin.Duration - 0.1);
+                    var cmd = new Services.TrimClipCommand(cin,
+                        cin.StartTime, cin.Duration, cin.InPoint, cin.OutPoint,
+                        t, cin.StartTime + cin.Duration - t,
+                        cin.InPoint + (t - cin.StartTime), cin.OutPoint);
+                    cmd.Execute();
+                    _undo.Push(cmd);
+                    RebuildTimeline();
+                    break;
+                }
+
+                case Key.O when e.KeyModifiers == KeyModifiers.None && _session.SelectedClip is { } cout:
+                {
+                    // set out-point at playhead (trim from the right)
+                    double dur = Math.Max(0.1, _session.PlayheadSeconds - cout.StartTime);
+                    var cmd = new Services.TrimClipCommand(cout,
+                        cout.StartTime, cout.Duration, cout.InPoint, cout.OutPoint,
+                        cout.StartTime, dur, cout.InPoint, cout.InPoint + dur);
+                    cmd.Execute();
+                    _undo.Push(cmd);
+                    RebuildTimeline();
+                    break;
+                }
+
+                default:
+                    return;   // not handled — let it bubble
+            }
+            e.Handled = true;
+        }
+
+        /// <summary>Edit ▸ Undo / Ctrl+Z entry point.</summary>
+        public bool UndoEdit()
+        {
+            if (!_undo.CanUndo) return false;
+            _undo.Undo();
+            var sel = _session.SelectedClip;
+            if (sel != null && Tl != null && !Tl.Clips.Contains(sel)) _session.SelectClip(null);
+            RebuildTimeline();
+            RenderPreviewFrame();
+            return true;
+        }
+
+        /// <summary>Edit ▸ Redo / Ctrl+Shift+Z / Ctrl+Y entry point.</summary>
+        public bool RedoEdit()
+        {
+            if (!_undo.CanRedo) return false;
+            _undo.Redo();
+            RebuildTimeline();
+            RenderPreviewFrame();
+            return true;
+        }
+
+        public bool CanUndoEdit => _undo.CanUndo;
+        public bool CanRedoEdit => _undo.CanRedo;
 
         // ---------- info ----------
 
