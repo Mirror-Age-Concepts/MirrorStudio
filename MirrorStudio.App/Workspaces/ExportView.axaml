@@ -1,0 +1,98 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="MirrorStudio.App.Workspaces.ExportView">
+    <DockPanel>
+        <Border DockPanel.Dock="Bottom" Background="{DynamicResource BInset}" Padding="10">
+            <StackPanel>
+                <ProgressBar Name="ExportProgress" Height="6" Minimum="0" Maximum="100" IsIndeterminate="False" Margin="0,0,0,8"/>
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <Button Name="ExportBtn" Content="EXPORT" Width="140" FontWeight="Bold" Click="OnExport"/>
+                    <TextBlock Name="ExportStatusText" Grid.Column="1" Text="Ready" Foreground="{DynamicResource BTxtHigh}" VerticalAlignment="Center" Margin="12,0"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <Grid ColumnDefinitions="260,*,300">
+            <Border Grid.Column="0" Background="{DynamicResource BPanel}">
+                <DockPanel Margin="8">
+                    <TextBlock DockPanel.Dock="Top" Text="PLATFORM PRESETS" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,4"/>
+                    <ListBox Name="PlatformList" SelectionChanged="OnPlatformSelected" Height="150">
+                        <ListBoxItem Tag="youtube">YouTube (1080p30)</ListBoxItem>
+                        <ListBoxItem Tag="instagram">Instagram (1080x1080)</ListBoxItem>
+                        <ListBoxItem Tag="tiktok">TikTok (1080x1920 vertical)</ListBoxItem>
+                        <ListBoxItem Tag="facebook">Facebook (720p30)</ListBoxItem>
+                        <ListBoxItem IsSelected="True">Custom</ListBoxItem>
+                    </ListBox>
+                    <TextBlock DockPanel.Dock="Top" Text="FORMAT PRESETS" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,10,0,4"/>
+                    <ListBox Name="PresetsList" SelectionChanged="OnPresetSelected">
+                        <ListBoxItem Tag="mp4_h264" IsSelected="True">MP4 - H.264 (universal)</ListBoxItem>
+                        <ListBoxItem Tag="mp4_hevc">MP4 - H.265/HEVC (small)</ListBoxItem>
+                        <ListBoxItem Tag="webm_vp9">WebM - VP9 (web)</ListBoxItem>
+                        <ListBoxItem Tag="mov_prores">MOV - ProRes 422 (editing master)</ListBoxItem>
+                        <ListBoxItem Tag="png_seq">PNG Sequence (frames)</ListBoxItem>
+                        <ListBoxItem Tag="wav">WAV Audio</ListBoxItem>
+                        <ListBoxItem Tag="mp3">MP3 Audio</ListBoxItem>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <Border Grid.Column="1" Background="{DynamicResource BPanelAlt}">
+                <StackPanel Margin="14" MaxWidth="480" HorizontalAlignment="Left">
+                    <TextBlock Text="SOURCE" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,4,0,6"/>
+                    <ComboBox Name="ModeCombo" SelectedIndex="0" Width="320" HorizontalAlignment="Left" SelectionChanged="OnModeChanged">
+                        <ComboBoxItem Content="Timeline sequence (all clips)"/>
+                        <ComboBoxItem Content="Single media file"/>
+                    </ComboBox>
+                    <StackPanel Name="SourcePanel" Orientation="Horizontal" Margin="0,8,0,0">
+                        <ComboBox Name="SourceCombo" Width="240"/>
+                        <Button Content="Refresh" Width="70" Margin="6,0,0,0" Click="OnRefreshSources"/>
+                    </StackPanel>
+
+                    <CheckBox Name="IncludeAudioChk" Content="Include audio mixdown" IsChecked="True" Margin="0,14,0,0"/>
+
+                    <TextBlock Text="RESOLUTION" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,20,0,6"/>
+                    <ComboBox Name="ResolutionCombo" SelectedIndex="1" Width="220" HorizontalAlignment="Left">
+                        <ComboBoxItem Tag="source">Project / Source resolution</ComboBoxItem>
+                        <ComboBoxItem Tag="3840x2160">3840 x 2160 (4K UHD)</ComboBoxItem>
+                        <ComboBoxItem Tag="1920x1080">1920 x 1080 (Full HD)</ComboBoxItem>
+                        <ComboBoxItem Tag="1280x720">1280 x 720 (HD)</ComboBoxItem>
+                        <ComboBoxItem Tag="1080x1920">1080 x 1920 (Vertical)</ComboBoxItem>
+                    </ComboBox>
+
+                    <TextBlock Text="FRAME RATE" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,20,0,6"/>
+                    <ComboBox Name="FpsCombo" SelectedIndex="0" Width="220" HorizontalAlignment="Left">
+                        <ComboBoxItem Tag="source">Project frame rate</ComboBoxItem>
+                        <ComboBoxItem Tag="23.976">23.976 fps (film)</ComboBoxItem>
+                        <ComboBoxItem Tag="24">24 fps</ComboBoxItem>
+                        <ComboBoxItem Tag="25">25 fps (PAL)</ComboBoxItem>
+                        <ComboBoxItem Tag="30">30 fps</ComboBoxItem>
+                        <ComboBoxItem Tag="60">60 fps</ComboBoxItem>
+                    </ComboBox>
+
+                    <TextBlock Text="QUALITY" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,20,0,6"/>
+                    <Slider Name="QualitySlider" Minimum="14" Maximum="32" Value="20"/>
+                    <Grid ColumnDefinitions="*,*,*">
+                        <TextBlock Text="High quality" Foreground="{DynamicResource BTxtMid}" FontSize="10"/>
+                        <TextBlock Grid.Column="1" Text="Balanced" Foreground="{DynamicResource BTxtMid}" FontSize="10" TextAlignment="Center"/>
+                        <TextBlock Grid.Column="2" Text="Small file" Foreground="{DynamicResource BTxtMid}" FontSize="10" TextAlignment="Right"/>
+                    </Grid>
+
+                    <TextBlock Text="OUTPUT NAME" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,20,0,6"/>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBox Name="OutputNameBox" Watermark="output name" Width="240"/>
+                        <Button Content="Browse..." Width="80" Margin="6,0,0,0" Click="OnBrowseOutput"/>
+                    </StackPanel>
+                    <TextBlock Name="OutputPathHint" Text="" Foreground="{DynamicResource BTxtLow}" FontSize="10" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="2" Background="{DynamicResource BPanel}">
+                <DockPanel Margin="10">
+                    <TextBlock DockPanel.Dock="Top" Text="RENDER LOG" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,4"/>
+                    <TextBox Name="LogBox" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"
+                             FontFamily="Consolas" FontSize="10" Foreground="{DynamicResource BTxtMid}"/>
+                </DockPanel>
+            </Border>
+        </Grid>
+    </DockPanel>
+</UserControl>

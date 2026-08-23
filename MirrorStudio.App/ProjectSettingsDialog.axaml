@@ -1,0 +1,54 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="MirrorStudio.App.ProjectSettingsDialog"
+        Title="Project Settings" Width="520" Height="480"
+        WindowStartupLocation="CenterOwner">
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*,Auto" ColumnDefinitions="170,*" Margin="14">
+        <TextBlock Text="Project Name" VerticalAlignment="Center" Grid.Row="0"/>
+        <TextBox Name="NameBox" Grid.Row="0" Grid.Column="1" Margin="0,6"/>
+
+        <TextBlock Text="Resolution" VerticalAlignment="Center" Grid.Row="1"/>
+        <StackPanel Orientation="Horizontal" Grid.Row="1" Grid.Column="1" Margin="0,6">
+            <TextBox Name="WidthBox" Width="90"/>
+            <TextBlock Text=" × " VerticalAlignment="Center"/>
+            <TextBox Name="HeightBox" Width="90"/>
+            <ComboBox Name="PresetCombo" Width="150" Margin="12,0,0,0" SelectionChanged="OnPresetChanged">
+                <ComboBoxItem Tag="1920x1080" Content="1080p (16:9)" IsSelected="True"/>
+                <ComboBoxItem Tag="3840x2160" Content="4K UHD (16:9)"/>
+                <ComboBoxItem Tag="1280x720" Content="720p (16:9)"/>
+                <ComboBoxItem Tag="2048x858" Content="Cinema 2K (2.39:1)"/>
+                <ComboBoxItem Tag="1080x1920" Content="Vertical (9:16)"/>
+                <ComboBoxItem Tag="1080x1080" Content="Square (1:1)"/>
+            </ComboBox>
+        </StackPanel>
+
+        <TextBlock Text="Frame Rate" VerticalAlignment="Center" Grid.Row="2"/>
+        <ComboBox Name="FpsCombo" Grid.Row="2" Grid.Column="1" Width="160" HorizontalAlignment="Left" Margin="0,6">
+            <ComboBoxItem Content="23.976"/><ComboBoxItem Content="24"/><ComboBoxItem Content="25"/>
+            <ComboBoxItem Content="30"/><ComboBoxItem Content="50"/><ComboBoxItem Content="60"/>
+        </ComboBox>
+
+        <TextBlock Text="Aspect Ratio" VerticalAlignment="Center" Grid.Row="3"/>
+        <TextBlock Name="AspectText" Text="16:9" Foreground="{DynamicResource BAccent}" VerticalAlignment="Center" Grid.Row="3" Grid.Column="1"/>
+
+        <TextBlock Text="Audio Sample Rate" VerticalAlignment="Center" Grid.Row="4"/>
+        <ComboBox Name="SampleRateCombo" SelectedIndex="1" Grid.Row="4" Grid.Column="1" Width="160" HorizontalAlignment="Left" Margin="0,6">
+            <ComboBoxItem Content="44100 Hz"/>
+            <ComboBoxItem Content="48000 Hz"/>
+            <ComboBoxItem Content="96000 Hz"/>
+        </ComboBox>
+
+        <TextBlock Text="Default Export" VerticalAlignment="Center" Grid.Row="5"/>
+        <ComboBox Name="ExportFormatCombo" SelectedIndex="0" Grid.Row="5" Grid.Column="1" Width="220" HorizontalAlignment="Left" Margin="0,6">
+            <ComboBoxItem Content="MP4 H.264"/>
+            <ComboBoxItem Content="MP4 H.265"/>
+            <ComboBoxItem Content="WebM VP9"/>
+            <ComboBoxItem Content="MOV ProRes"/>
+        </ComboBox>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Grid.Row="7" Grid.ColumnSpan="2" Margin="0,12,0,0">
+            <Button Content="Apply" Width="100" Margin="6,0" Click="OnApply"/>
+            <Button Content="Cancel" Width="100" Margin="6,0" Click="OnCancel"/>
+        </StackPanel>
+    </Grid>
+</Window>

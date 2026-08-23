@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MirrorStudio.Core\MirrorStudio.Core.csproj" />
+    <ProjectReference Include="..\MirrorStudio.Database\MirrorStudio.Database.csproj" />
+    <ProjectReference Include="..\MirrorStudio.Media\MirrorStudio.Media.csproj" />
+  </ItemGroup>
+</Project>

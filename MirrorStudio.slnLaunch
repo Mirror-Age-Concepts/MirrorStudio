@@ -1,0 +1,11 @@
+[
+  {
+    "Name": "New Profile",
+    "Projects": [
+      {
+        "Path": "MirrorStudio.App\\MirrorStudio.App.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]

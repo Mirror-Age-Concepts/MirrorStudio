@@ -1,0 +1,67 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="MirrorStudio.App.Workspaces.MotionStudioView">
+    <DockPanel>
+        <Border DockPanel.Dock="Bottom" Background="{DynamicResource BInset}">
+            <StackPanel Margin="8,6">
+                <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,4">
+                    <TextBlock Text="ANIMATION" Foreground="{DynamicResource BTxtMid}" FontSize="11"/>
+                    <TextBlock Name="PlayheadText" Grid.Column="1" Text="0.00 s / 5.00 s" Foreground="{DynamicResource BTxtMid}" FontSize="11"/>
+                </Grid>
+                <Slider Name="PlayheadSlider" Minimum="0" Maximum="5" Value="0" ValueChanged="OnPlayheadChanged"/>
+                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                    <Button Content="Play" Width="70" Margin="2" Click="OnPlayAnimation"/>
+                    <Button Content="Stop" Width="70" Margin="2" Click="OnStopAnimation"/>
+                    <Button Content="Add Keyframe" Margin="12,2,2,2" Click="OnAddKeyframe"/>
+                    <Button Content="Clear Keys" Margin="6,2,2,2" Click="OnClearKeys"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <Grid ColumnDefinitions="250,*,280">
+            <Border Grid.Column="0" Background="{DynamicResource BPanel}">
+                <ScrollViewer>
+                    <StackPanel Margin="10">
+                        <TextBlock Text="TEXT ANIMATION" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,4,0,4"/>
+                        <TextBox Name="TitleTextBox" Watermark="Title text..." Text="MIRROR STUDIO"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <Button Content="Set Title" Width="90" Margin="2" Click="OnAddTitle"/>
+                            <Button Content="Typewriter" Width="100" Margin="2" Click="OnTypewriter"/>
+                        </StackPanel>
+
+                        <TextBlock Text="GRAPHICS" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,16,0,4"/>
+                        <Button Content="+ Shape Element" Margin="2" Click="OnAddShape"/>
+                        <Button Content="+ Image Element" Margin="2" Click="OnAddImageElement"/>
+
+                        <TextBlock Text="MOTION PRESETS" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,16,0,4"/>
+                        <Button Content="Fade In" Margin="2" Click="OnPresetFadeIn"/>
+                        <Button Content="Slide Up" Margin="2" Click="OnPresetSlideUp"/>
+                        <Button Content="Zoom In" Margin="2" Click="OnPresetZoomIn"/>
+                        <Button Content="Bounce" Margin="2" Click="OnPresetBounce"/>
+
+                        <TextBlock Text="ELEMENTS" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,16,0,4"/>
+                        <ListBox Name="ElementsList" Height="140"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <Border Grid.Column="1" Background="{DynamicResource BPanelAlt}">
+                <Grid>
+                    <Border Background="{DynamicResource BTrackHead}" Margin="8" CornerRadius="3">
+                        <TextBlock Name="StageText" Text="MOTION STAGE&#10;1920 x 1080" Foreground="{DynamicResource BTxtDim}" FontSize="18"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center"/>
+                    </Border>
+                    <TextBlock Name="StageOverlayText" Text="" Foreground="{DynamicResource BAccent}" FontSize="32" FontWeight="Bold"
+                               HorizontalAlignment="Center" VerticalAlignment="Top" Margin="20,20,20,0"/>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="2" Background="{DynamicResource BPanel}">
+                <DockPanel Margin="8">
+                    <TextBlock DockPanel.Dock="Top" Text="KEYFRAMES" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,4"/>
+                    <ListBox Name="KeyframesList"/>
+                </DockPanel>
+            </Border>
+        </Grid>
+    </DockPanel>
+</UserControl>

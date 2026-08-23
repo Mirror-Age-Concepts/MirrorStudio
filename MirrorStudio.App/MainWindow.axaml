@@ -1,0 +1,126 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="MirrorStudio.App.MainWindow"
+        Title="Mirror Studio" Width="1360" Height="860">
+    <Window.Styles>
+        <Style Selector="Button.ws">
+            <Setter Property="Background" Value="{DynamicResource BPanel}"/>
+            <Setter Property="Foreground" Value="{DynamicResource BTxtHigh}"/>
+            <Setter Property="Padding" Value="14,7"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+        <Style Selector="Button.ws:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource BPanelAlt}"/>
+        </Style>
+        <Style Selector="Button.ws.active">
+            <Setter Property="Background" Value="#FF37474F"/>
+            <Setter Property="Foreground" Value="{DynamicResource BAccent}"/>
+        </Style>
+    </Window.Styles>
+
+    <DockPanel>
+        <Menu DockPanel.Dock="Top" Background="{DynamicResource BWindow}" Foreground="{DynamicResource BTxtHigh}">
+            <MenuItem Header="File">
+                <MenuItem Header="New Project" Click="OnNewProject" HotKey="Ctrl+N"/>
+                <MenuItem Header="Open Project" Click="OnOpenProject" HotKey="Ctrl+O"/>
+                <Separator/>
+                <MenuItem Header="Save Project" Click="OnSaveProject" HotKey="Ctrl+S"/>
+                <MenuItem Header="Save Project As..." Click="OnSaveProjectAs" HotKey="F12"/>
+                <Separator/>
+                <MenuItem Header="Exit" Click="OnExit"/>
+            </MenuItem>
+            <MenuItem Header="Edit">
+                <MenuItem Header="Undo" Click="OnEditUndo" HotKey="Ctrl+Z"/>
+                <MenuItem Header="Redo" Click="OnEditRedo" HotKey="Ctrl+Y"/>
+                <Separator/>
+                <MenuItem Header="Cut" Click="OnEditCut" HotKey="Ctrl+X"/>
+                <MenuItem Header="Copy" Click="OnEditCopy" HotKey="Ctrl+C"/>
+                <MenuItem Header="Paste" Click="OnEditPaste" HotKey="Ctrl+V"/>
+                <Separator/>
+                <MenuItem Header="Delete" Click="OnEditDelete" HotKey="Delete"/>
+                <MenuItem Header="Select All" Click="OnEditSelectAll" HotKey="Ctrl+A"/>
+            </MenuItem>
+            <MenuItem Header="View">
+                <MenuItem Header="Workspaces">
+                    <MenuItem Header="Home" Click="OnShowHome"/>
+                    <MenuItem Header="Video Studio" Click="OnShowVideo"/>
+                    <MenuItem Header="Image Studio" Click="OnShowImage"/>
+                    <MenuItem Header="Motion Studio" Click="OnShowMotion"/>
+                    <MenuItem Header="Audio Studio" Click="OnShowAudio"/>
+                    <MenuItem Header="Export" Click="OnShowExport"/>
+                </MenuItem>
+                <Separator/>
+                <MenuItem Header="Next Workspace" Click="OnNextWorkspace" HotKey="Ctrl+Tab"/>
+                <MenuItem Header="Previous Workspace" Click="OnPrevWorkspace" HotKey="Ctrl+Shift+Tab"/>
+                <Separator/>
+                <MenuItem Header="Dark Theme" Click="OnThemeDark"/>
+                <MenuItem Header="Light Theme" Click="OnThemeLight"/>
+                <Separator/>
+                <MenuItem Header="Status Bar" Click="OnViewToggleStatusBar"/>
+                <MenuItem Header="Full Screen" Click="OnViewFullScreen" HotKey="F11"/>
+            </MenuItem>
+            <MenuItem Header="Project">
+                <MenuItem Header="Project Settings..." Click="OnProjectSettings" HotKey="Ctrl+P"/>
+                <MenuItem Header="Backup Project" Click="OnBackupProject"/>
+                <Separator/>
+                <MenuItem Header="Open Project Folder" Click="OnOpenProjectFolder"/>
+                <Separator/>
+                <MenuItem Header="Close Project" Click="OnCloseProject"/>
+            </MenuItem>
+            <MenuItem Header="Media">
+                <MenuItem Header="Import Media..." Click="OnMediaImport" HotKey="Ctrl+I"/>
+                <MenuItem Header="Regenerate Thumbnails" Click="OnMediaRegenerateThumbnails"/>
+                <Separator/>
+                <MenuItem Header="Generate Proxies (720p)" Click="OnMediaGenerateProxies"/>
+                <Separator/>
+                <MenuItem Header="Open Media Folder" Click="OnOpenMediaFolder"/>
+            </MenuItem>
+            <MenuItem Header="Timeline">
+                <MenuItem Header="Split Clip at Playhead" Click="OnTimelineSplit" HotKey="Ctrl+K"/>
+                <MenuItem Header="Delete Selected Clip" Click="OnTimelineDeleteSelected"/>
+                <Separator/>
+                <MenuItem Header="Go to Start" Click="OnTimelineGoStart"/>
+                <MenuItem Header="Go to End" Click="OnTimelineGoEnd"/>
+                <Separator/>
+                <MenuItem Header="Zoom In" Click="OnTimelineZoomIn"/>
+                <MenuItem Header="Zoom Out" Click="OnTimelineZoomOut"/>
+            </MenuItem>
+            <MenuItem Header="Tools">
+                <MenuItem Header="Detect Media Engine (FFmpeg)" Click="OnToolsDetectMediaEngine"/>
+                <MenuItem Header="Open Projects Folder" Click="OnHelpOpenProjectsFolder"/>
+                <Separator/>
+                <MenuItem Header="Settings..." Click="OnToolsSettings"/>
+            </MenuItem>
+            <MenuItem Header="Help">
+                <MenuItem Header="Quick Start Guide" Click="OnHelpQuickStart"/>
+                <MenuItem Header="Keyboard Shortcuts" Click="OnHelpShortcuts"/>
+                <Separator/>
+                <MenuItem Header="Check for Updates..." Click="OnHelpCheckUpdates"/>
+                <MenuItem Header="About Mirror Studio" Click="OnHelpAbout"/>
+            </MenuItem>
+        </Menu>
+
+        <Border DockPanel.Dock="Top" Background="{DynamicResource BWindow}" Padding="12,8">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="MIRROR STUDIO" FontWeight="Bold" FontSize="16"
+                           Foreground="{DynamicResource BAccent}" VerticalAlignment="Center" Margin="0,0,28,0"/>
+                <Button Classes="ws" Name="BtnHome" Content="HOME" Click="OnShowHome" Margin="0,0,6,0"/>
+                <Button Classes="ws" Name="BtnVideo" Content="VIDEO" Click="OnShowVideo" Margin="0,0,6,0"/>
+                <Button Classes="ws" Name="BtnImage" Content="IMAGE" Click="OnShowImage" Margin="0,0,6,0"/>
+                <Button Classes="ws" Name="BtnMotion" Content="MOTION" Click="OnShowMotion" Margin="0,0,6,0"/>
+                <Button Classes="ws" Name="BtnAudio" Content="AUDIO" Click="OnShowAudio" Margin="0,0,6,0"/>
+                <Button Classes="ws" Name="BtnExport" Content="EXPORT" Click="OnShowExport"/>
+            </StackPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom" Name="StatusBar" Background="{DynamicResource BWindow}" Padding="10,4">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Name="StatusText" Text="Welcome to Mirror Studio" Foreground="{DynamicResource BTxtMid}" FontSize="11"/>
+                <TextBlock Name="ProjectBadgeText" Grid.Column="1" Text="No project" Foreground="{DynamicResource BTxtLow}" FontSize="11"/>
+            </Grid>
+        </Border>
+
+        <ContentControl Name="WorkspaceHost"/>
+    </DockPanel>
+</Window>

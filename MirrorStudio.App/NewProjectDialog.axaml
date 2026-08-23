@@ -1,0 +1,36 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="MirrorStudio.App.NewProjectDialog"
+        Title="New Project" Width="480" Height="360">
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*" ColumnDefinitions="*,Auto">
+        <TextBlock Text="Project Name" Margin="10" Grid.Row="0" Grid.Column="0" />
+        <TextBox Name="NameBox" Grid.Row="0" Grid.Column="1" Width="250" Margin="10" />
+
+        <TextBlock Text="Resolution (WxH)" Margin="10" Grid.Row="1" Grid.Column="0" />
+        <StackPanel Orientation="Horizontal" Grid.Row="1" Grid.Column="1" Margin="10">
+            <TextBox Name="WidthBox" Width="100" Margin="0,0,6,0" />
+            <TextBlock Text="x" VerticalAlignment="Center" />
+            <TextBox Name="HeightBox" Width="100" Margin="6,0,0,0" />
+        </StackPanel>
+
+        <TextBlock Text="Frame Rate (fps)" Margin="10" Grid.Row="2" Grid.Column="0" />
+        <ComboBox Name="FpsBox" Grid.Row="2" Grid.Column="1" Width="120" Margin="10">
+            <ComboBoxItem Content="24" />
+            <ComboBoxItem Content="25" />
+            <ComboBoxItem Content="30" />
+            <ComboBoxItem Content="50" />
+            <ComboBoxItem Content="60" />
+        </ComboBox>
+
+        <TextBlock Text="Project Folder" Margin="10" Grid.Row="3" Grid.Column="0" />
+        <StackPanel Orientation="Horizontal" Grid.Row="3" Grid.Column="1" Margin="10">
+            <TextBox Name="PathBox" Width="250" />
+            <Button Name="BrowseBtn" Content="Browse" Margin="6,0,0,0" Click="OnBrowse" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Grid.Row="4" Grid.ColumnSpan="2" Margin="10">
+            <Button Name="OkBtn" Content="Create" Width="90" Margin="6" Click="OnOk" />
+            <Button Name="CancelBtn" Content="Cancel" Width="90" Margin="6" Click="OnCancel" />
+        </StackPanel>
+    </Grid>
+</Window>

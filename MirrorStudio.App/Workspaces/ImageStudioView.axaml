@@ -1,0 +1,108 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="MirrorStudio.App.Workspaces.ImageStudioView">
+    <Grid ColumnDefinitions="220,*,300">
+        <Border Grid.Column="0" Background="{DynamicResource BPanel}">
+            <ScrollViewer>
+                <StackPanel Margin="10">
+                    <TextBlock Text="TOOLS" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,4"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Brush" Width="70" Margin="2" Click="OnBrushTool"/>
+                        <Button Content="Pencil" Width="70" Margin="2" Click="OnPencilTool"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Eraser" Width="70" Margin="2" Click="OnEraserTool"/>
+                        <Button Content="Fill" Width="70" Margin="2" Click="OnFillTool"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Crop" Width="70" Margin="2" Click="OnCropTool"/>
+                        <Button Content="Move" Width="70" Margin="2" Click="OnMoveTool"/>
+                    </StackPanel>
+
+                    <TextBlock Text="RETOUCH" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,16,0,4"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Clone" Width="70" Margin="2" Click="OnCloneTool"/>
+                        <Button Content="Heal" Width="70" Margin="2" Click="OnHealTool"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Dodge" Width="70" Margin="2" Click="OnDodgeTool"/>
+                        <Button Content="Burn" Width="70" Margin="2" Click="OnBurnTool"/>
+                    </StackPanel>
+
+                    <TextBlock Text="BRUSH SIZE" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,16,0,4"/>
+                    <Slider Name="BrushSizeSlider" Minimum="1" Maximum="200" Value="20" ValueChanged="OnBrushSizeChanged"/>
+                    <TextBlock Text="OPACITY" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,12,0,4"/>
+                    <Slider Name="BrushOpacitySlider" Minimum="1" Maximum="100" Value="100" ValueChanged="OnBrushSizeChanged"/>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <Border Grid.Column="1" Background="{DynamicResource BPanelAlt}">
+            <DockPanel>
+                <Border DockPanel.Dock="Top" Background="{DynamicResource BInset}" Padding="8">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Name="ActiveToolText" Text="Tool: none" Foreground="{DynamicResource BTxtHigh}" VerticalAlignment="Center"/>
+                        <Button Content="Open Image..." Margin="16,0,0,0" Click="OnOpenImage"/>
+                        <Button Content="Save Copy..." Margin="8,0,0,0" Click="OnSaveImage"/>
+                    </StackPanel>
+                </Border>
+                <Border Background="{DynamicResource BTrackHead}" Margin="8" CornerRadius="3">
+                    <Grid>
+                        <TextBlock Name="CanvasHintText" Text="CANVAS&#10;(no image open)" Foreground="{DynamicResource BTxtDim}" FontSize="18"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center"/>
+                        <Image Name="CanvasImage" Stretch="Uniform"/>
+                    </Grid>
+                </Border>
+            </DockPanel>
+        </Border>
+
+        <TabControl Grid.Column="2" Background="{DynamicResource BPanel}">
+            <TabItem Header="Layers">
+                <DockPanel Margin="8">
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
+                        <Button Content="Add" Width="60" Margin="2" Click="OnAddLayer"/>
+                        <Button Content="Delete" Width="60" Margin="2" Click="OnDeleteLayer"/>
+                        <Button Content="Up" Width="50" Margin="2" Click="OnMoveLayerUp"/>
+                        <Button Content="Down" Width="60" Margin="2" Click="OnMoveLayerDown"/>
+                    </StackPanel>
+                    <ListBox Name="LayersList"/>
+                </DockPanel>
+            </TabItem>
+            <TabItem Header="Properties">
+                <StackPanel Margin="12">
+                    <TextBlock Text="DOCUMENT" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,4,0,8"/>
+                    <TextBlock Name="PropDocText" Text="No image open" Foreground="{DynamicResource BTxtHigh}"/>
+                    <Separator Margin="0,12"/>
+                    <TextBlock Text="SELECTED LAYER" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,0,0,8"/>
+                    <TextBlock Name="PropLayerText" Text="-" Foreground="{DynamicResource BTxtHigh}"/>
+                </StackPanel>
+            </TabItem>
+            <TabItem Header="Filters">
+                <StackPanel Margin="10">
+                    <TextBlock Text="BLUR &amp; SHARPEN" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,4,0,4"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Blur" Width="80" Margin="2" Click="OnBlurFilter"/>
+                        <Button Content="Sharpen" Width="80" Margin="2" Click="OnSharpenFilter"/>
+                    </StackPanel>
+                    <TextBlock Text="COLOR" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,14,0,4"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Grayscale" Width="80" Margin="2" Click="OnGrayscaleFilter"/>
+                        <Button Content="Sepia" Width="80" Margin="2" Click="OnSepiaFilter"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Invert" Width="80" Margin="2" Click="OnInvertFilter"/>
+                        <Button Content="Vintage" Width="80" Margin="2" Click="OnVintageFilter"/>
+                    </StackPanel>
+                    <TextBlock Text="ADJUST" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,14,0,4"/>
+                    <TextBlock Text="Brightness" Foreground="{DynamicResource BTxtHigh}" Margin="0,4"/>
+                    <Slider Minimum="-100" Maximum="100" Value="0"/>
+                    <TextBlock Text="Contrast" Foreground="{DynamicResource BTxtHigh}" Margin="0,8"/>
+                    <Slider Minimum="-100" Maximum="100" Value="0"/>
+                    <TextBlock Text="Saturation" Foreground="{DynamicResource BTxtHigh}" Margin="0,8"/>
+                    <Slider Minimum="0" Maximum="200" Value="100"/>
+                    <Button Content="Apply Adjustments" Margin="0,12,0,0" Click="OnApplyAdjustments"/>
+                </StackPanel>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</UserControl>

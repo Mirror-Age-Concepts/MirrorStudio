@@ -1,0 +1,66 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="MirrorStudio.App.Workspaces.HomeView">
+    <ScrollViewer>
+        <StackPanel MaxWidth="980" HorizontalAlignment="Center" Margin="0,24">
+            <TextBlock Text="MIRROR STUDIO" FontSize="34" FontWeight="Bold" Foreground="{DynamicResource BAccent}" HorizontalAlignment="Center"/>
+            <TextBlock Text="Professional Video, Film &amp; Image Editing Software" FontSize="14" Foreground="{DynamicResource BTxtMid}"
+                       HorizontalAlignment="Center" Margin="0,6,0,4"/>
+            <TextBlock Text="For Filmmakers • Video Editors • Content Creators • Photographers • Graphic Designers • Media Houses"
+                       FontSize="11" Foreground="{DynamicResource BTxtLow}" HorizontalAlignment="Center" Margin="0,0,0,24"/>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                <Button Name="NewProjectBtn" Content="+  NEW PROJECT" Padding="22,12" FontWeight="Bold" Margin="8" Click="OnNewProjectClick"/>
+                <Button Name="OpenProjectBtn" Content="OPEN PROJECT..." Padding="22,12" FontWeight="Bold" Margin="8" Click="OnOpenProjectClick"/>
+            </StackPanel>
+
+            <TextBlock Text="TEMPLATES" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,28,0,8"/>
+            <ItemsControl Name="TemplatesList">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="3"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Button Margin="6" Padding="0" HorizontalContentAlignment="Stretch" Click="OnTemplateClick">
+                            <Border Background="{DynamicResource BPanelAlt}" CornerRadius="6" Padding="14">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Name}" Foreground="{DynamicResource BAccent}" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding Specs}" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,4,0,0"/>
+                                    <TextBlock Text="{Binding Description}" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <Grid ColumnDefinitions="*,340" Margin="0,28,0,24">
+                <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                    <TextBlock Text="RECENT PROJECTS" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,0,0,8"/>
+                    <ListBox Name="RecentsList" Height="170"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <Button Content="Open Selected" Width="130" Margin="0,0,8,0" Click="OnOpenRecentClick"/>
+                        <Button Content="Remove From List" Click="OnRemoveRecentClick"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <Border Grid.Column="1" Background="{DynamicResource BInset}" CornerRadius="6" Padding="14">
+                    <StackPanel>
+                        <TextBlock Text="SETTINGS  ·  MEDIA ENGINE" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,0,0,10"/>
+                        <TextBlock Text="FFmpeg path" Foreground="{DynamicResource BTxtHigh}" FontSize="11"/>
+                        <TextBox Name="FfmpegPathBox" Watermark="ffmpeg (blank = auto-detect)"/>
+                        <TextBlock Text="FFprobe path" Foreground="{DynamicResource BTxtHigh}" FontSize="11" Margin="0,8,0,0"/>
+                        <TextBox Name="FfprobePathBox" Watermark="ffprobe (blank = auto-detect)"/>
+                        <Button Content="Detect Media Engine" Width="160" Margin="0,8,0,0" HorizontalAlignment="Left" Click="OnDetectMediaEngine"/>
+                        <CheckBox Name="AutoSaveCheck" Content="Auto-save projects" Foreground="{DynamicResource BTxtHigh}" Margin="0,10,0,0"/>
+                        <CheckBox Name="HardwareAccelCheck" Content="Prefer hardware acceleration (when available)" Foreground="{DynamicResource BTxtHigh}" Margin="0,8,0,0"/>
+                        <Button Content="Save Settings" Width="140" Margin="0,12,0,0" HorizontalAlignment="Left" Click="OnSaveSettings"/>
+                        <TextBlock Name="SettingsStatusText" Text="" Foreground="{DynamicResource BAccent}" FontSize="11" Margin="0,8,0,0"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

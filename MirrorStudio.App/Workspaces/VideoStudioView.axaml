@@ -1,0 +1,225 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="MirrorStudio.App.Workspaces.VideoStudioView">
+    <DockPanel>
+        <!-- TIMELINE -->
+        <Border DockPanel.Dock="Bottom" Background="{DynamicResource BWindow}" Height="270" BorderBrush="{DynamicResource BBorder}" BorderThickness="0,1,0,0">
+            <DockPanel Margin="8,6">
+                <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,6">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Name="TimecodeText" Text="00:00:00:00" Foreground="{DynamicResource BAccent}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                        <Button Content="Split" Height="24" Padding="8,1" Click="OnSplitClip"/>
+                        <Button Content="Delete" Height="24" Padding="8,1" Margin="6,0,0,0" Click="OnDeleteClip"/>
+                        <CheckBox Name="RippleChk" Content="Ripple delete" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                        <Button Content="+ Title" Height="24" Padding="8,1" Margin="10,0,0,0" Click="OnAddTitle"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal">
+                        <TextBlock Text="Zoom" Foreground="{DynamicResource BTxtMid}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <Slider Name="TimelineZoomSlider" Width="140" Minimum="8" Maximum="160" Value="30" ValueChanged="OnTimelineZoomChanged" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Grid>
+                <Grid ColumnDefinitions="64,*">
+                    <StackPanel Name="TrackHeadersStack" Grid.Column="0"/>
+                    <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                        <Canvas Name="ClipsCanvas" Height="224" Background="{DynamicResource BLaneDark}"
+                                PointerPressed="OnTimelinePointerPressed"
+                                PointerMoved="OnTimelinePointerMoved"
+                                PointerReleased="OnTimelinePointerReleased"/>
+                    </ScrollViewer>
+                </Grid>
+            </DockPanel>
+        </Border>
+
+        <Grid ColumnDefinitions="250,*,330">
+            <!-- MEDIA BROWSER -->
+            <Border Grid.Column="0" Background="{DynamicResource BPanel}">
+                <DockPanel Margin="8">
+                    <TextBlock DockPanel.Dock="Top" Text="MEDIA BROWSER" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,4"/>
+                    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,4,0,4">
+                        <ComboBox Name="CategoryCombo" SelectedIndex="0" SelectionChanged="OnCategoryChanged">
+                            <ComboBoxItem Content="All"/>
+                            <ComboBoxItem Content="Video"/>
+                            <ComboBoxItem Content="Audio"/>
+                            <ComboBoxItem Content="Images"/>
+                            <ComboBoxItem Content="Graphics"/>
+                            <ComboBoxItem Content="Fonts"/>
+                        </ComboBox>
+                        <Button Grid.Column="1" Content="Import..." Margin="6,0,0,0" Padding="8,4" Click="OnImportMedia"/>
+                    </Grid>
+                    <ScrollViewer Name="MediaScroll" Background="{DynamicResource BListBg}">
+                        <StackPanel Name="MediaListHost"/>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <!-- PREVIEW -->
+            <Border Grid.Column="1" Background="{DynamicResource BPanelAlt}">
+                <DockPanel>
+                    <Border DockPanel.Dock="Bottom" Background="{DynamicResource BPanel}" Padding="8,6" BorderBrush="{DynamicResource BBorder}" BorderThickness="0,1,0,0">
+                        <Grid ColumnDefinitions="*,Auto,*" RowDefinitions="Auto,Auto">
+                            <StackPanel Grid.ColumnSpan="3" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,6">
+                                <Button Name="BtnStart" Content="⏮" Width="38" Height="28" Click="OnGotoStart"/>
+                                <Button Name="BtnFrameBack" Content="◀|" Width="38" Height="28" Margin="4,0,0,0" Click="OnPrevFrame"/>
+                                <Button Name="PlayBtn" Content="▶ Play" Width="74" Height="28" Margin="4,0,0,0" Click="OnPlayPause"/>
+                                <Button Name="BtnFrameFwd" Content="|▶" Width="38" Height="28" Margin="4,0,0,0" Click="OnNextFrame"/>
+                                <Button Name="BtnEnd" Content="⏭" Width="38" Height="28" Margin="4,0,0,0" Click="OnGotoEnd"/>
+                                <Button Name="RecordBtn" Content="●" Width="38" Height="28" Margin="12,0,0,0" Click="OnRecordMark"/>
+                                <Button Name="FullscreenBtn" Content="⛶" Width="38" Height="28" Margin="12,0,0,0" Click="OnToggleFullscreen"/>
+                            </StackPanel>
+                            <Slider Name="SeekSlider" Grid.Row="1" Grid.ColumnSpan="3" Minimum="0" Maximum="100" ValueChanged="OnSeekChanged"/>
+                            <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                <TextBlock Text="QUALITY" VerticalAlignment="Center" Margin="0,0,4,0" FontSize="10" Foreground="{DynamicResource BTxtMid}"/>
+                                <ComboBox Name="QualityCombo" Width="86" SelectedIndex="0" SelectionChanged="OnPreviewQualityChanged">
+                                    <ComboBoxItem Content="Full"/>
+                                    <ComboBoxItem Content="Half"/>
+                                    <ComboBoxItem Content="Quarter"/>
+                                    <ComboBoxItem Content="Proxy"/>
+                                </ComboBox>
+                                <ComboBox Name="ZoomCombo" Width="80" Margin="6,0,0,0" SelectedIndex="0" SelectionChanged="OnPreviewZoomChanged">
+                                    <ComboBoxItem Content="Fit"/>
+                                    <ComboBoxItem Content="50%"/>
+                                    <ComboBoxItem Content="100%"/>
+                                    <ComboBoxItem Content="200%"/>
+                                </ComboBox>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <ScrollViewer Name="PreviewScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                        <Panel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Border Name="StageBorder" Width="640" Height="360" Background="#FF000000" CornerRadius="2" ClipToBounds="True">
+                                <Panel>
+                                    <Image Name="PreviewImage" Stretch="UniformToFill"/>
+                                    <TextBlock Name="VideoPlaceText" Text="" Foreground="{DynamicResource BTxtMid}" FontSize="14"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"/>
+                                    <TextBlock Name="TitleOverlayText" Text="" Foreground="White" FontSize="42" FontWeight="Bold"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" IsVisible="False"/>
+                                    <Rectangle Name="DipOverlayRect" Fill="Black" Opacity="0" IsHitTestVisible="False"/>
+                                </Panel>
+                            </Border>
+                        </Panel>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <!-- INSPECTOR -->
+            <TabControl Grid.Column="2" Background="{DynamicResource BPanel}" Padding="6">
+                <TabItem Header="Inspector">
+                    <ScrollViewer>
+                        <StackPanel Margin="10">
+                            <TextBlock Text="TRANSFORM" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,4,0,6"/>
+                            <TextBlock Name="InspNameText" Text="-" Foreground="{DynamicResource BTxtPri}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" Margin="0,8,0,0">
+                                <TextBlock Text="Position X" VerticalAlignment="Center" Margin="0,4"/>
+                                <NumericUpDown Name="PosXB" Grid.Column="1" Margin="8,2,0,2" Minimum="-4000" Maximum="4000" Increment="5" ValueChanged="OnInspNum"/>
+                                <TextBlock Grid.Row="1" Text="Position Y" VerticalAlignment="Center"/>
+                                <NumericUpDown Name="PosYB" Grid.Row="1" Grid.Column="1" Margin="8,2,0,2" Minimum="-4000" Maximum="4000" Increment="5" ValueChanged="OnInspNum"/>
+                                <TextBlock Grid.Row="2" Text="Scale X %" VerticalAlignment="Center"/>
+                                <NumericUpDown Name="ScaleXB" Grid.Row="2" Grid.Column="1" Margin="8,2,0,2" Minimum="1" Maximum="1000" Value="100" ValueChanged="OnInspNum"/>
+                                <TextBlock Grid.Row="3" Text="Scale Y %" VerticalAlignment="Center"/>
+                                <NumericUpDown Name="ScaleYB" Grid.Row="3" Grid.Column="1" Margin="8,2,0,2" Minimum="1" Maximum="1000" Value="100" ValueChanged="OnInspNum"/>
+                                <TextBlock Grid.Row="4" Text="Rotation °" VerticalAlignment="Center"/>
+                                <NumericUpDown Name="RotB" Grid.Row="4" Grid.Column="1" Margin="8,2,0,2" Minimum="-360" Maximum="360" ValueChanged="OnInspNum"/>
+                                <TextBlock Grid.Row="5" Text="Opacity %" VerticalAlignment="Center"/>
+                                <Slider Name="OpacitySlider" Grid.Row="5" Grid.Column="1" Minimum="0" Maximum="100" Value="100" ValueChanged="OnInspRange" VerticalAlignment="Center" Margin="8,2,0,2"/>
+                            </Grid>
+                            <Separator Margin="0,12"/>
+                            <TextBlock Text="SEQUENCE" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,0,0,6"/>
+                            <TextBlock Name="InspSeqText" Text="No project loaded" Foreground="{DynamicResource BTxtHigh}" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+                <TabItem Header="Audio">
+                    <StackPanel Margin="10">
+                        <TextBlock Text="AUDIO" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,4,0,6"/>
+                        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+                            <TextBlock Text="Volume %" VerticalAlignment="Center" Margin="0,4"/>
+                            <Slider Name="VolSlider" Grid.Column="1" Minimum="0" Maximum="150" Value="100" ValueChanged="OnInspRange" VerticalAlignment="Center" Margin="8,2,0,2"/>
+                            <TextBlock Grid.Row="1" Text="Pan" VerticalAlignment="Center"/>
+                            <Slider Name="PanSlider" Grid.Row="1" Grid.Column="1" Minimum="-100" Maximum="100" Value="0" ValueChanged="OnInspRange" VerticalAlignment="Center" Margin="8,2,0,2"/>
+                            <TextBlock Grid.Row="2" Text="Gain dB" VerticalAlignment="Center"/>
+                            <NumericUpDown Name="GainDbB" Grid.Row="2" Grid.Column="1" Margin="8,2,0,2" Minimum="-48" Maximum="12" ValueChanged="OnInspNum"/>
+                            <TextBlock Grid.Row="3" Text="Fade In s" VerticalAlignment="Center"/>
+                            <NumericUpDown Name="FadeInB" Grid.Row="3" Grid.Column="1" Margin="8,2,0,2" Minimum="0" Maximum="60" Increment="0.5" ValueChanged="OnInspNum"/>
+                            <TextBlock Grid.Row="4" Text="Fade Out s" VerticalAlignment="Center"/>
+                            <NumericUpDown Name="FadeOutB" Grid.Row="4" Grid.Column="1" Margin="8,2,0,2" Minimum="0" Maximum="60" Increment="0.5" ValueChanged="OnInspNum"/>
+                            <CheckBox Name="MuteChk" Grid.Row="5" Content="Mute" Margin="0,6" Checked="OnInspCheck" Unchecked="OnInspCheck"/>
+                            <CheckBox Name="SoloChk" Grid.Row="6" Content="Solo" Margin="0,0,0,6" Checked="OnInspCheck" Unchecked="OnInspCheck"/>
+                        </Grid>
+                    </StackPanel>
+                </TabItem>
+                <TabItem Header="Effects">
+                    <DockPanel Margin="8">
+                        <StackPanel DockPanel.Dock="Bottom" Margin="0,6,0,0">
+                            <Slider Name="EffectAmountSlider" Minimum="0" Maximum="100" Value="50" ValueChanged="OnEffectAmountChanged"/>
+                            <TextBlock Name="EffectAmountText" Text="Amount: 50%" Foreground="{DynamicResource BTxtHigh}" FontSize="11"/>
+                            <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,6,0,0">
+                                <ComboBox Name="EffectCombo" SelectedIndex="0">
+                                    <ComboBoxItem Content="Brightness"/>
+                                    <ComboBoxItem Content="Contrast"/>
+                                    <ComboBoxItem Content="Saturation"/>
+                                    <ComboBoxItem Content="Hue"/>
+                                    <ComboBoxItem Content="Blur"/>
+                                    <ComboBoxItem Content="Sharpen"/>
+                                    <ComboBoxItem Content="Grayscale"/>
+                                    <ComboBoxItem Content="Sepia"/>
+                                    <ComboBoxItem Content="Vignette"/>
+                                </ComboBox>
+                                <Button Grid.Column="1" Content="Add" Margin="6,0,0,0" Padding="10,4" Click="OnAddEffect"/>
+                                <Button Grid.Column="2" Content="Remove" Margin="6,0,0,0" Padding="10,4" Click="OnRemoveEffect"/>
+                            </Grid>
+                        </StackPanel>
+                        <ListBox Name="AppliedEffectsList" Background="{DynamicResource BListBg}" SelectionChanged="OnAppliedEffectSelected"/>
+                    </DockPanel>
+                </TabItem>
+                <TabItem Header="Transitions">
+                    <DockPanel Margin="8">
+                        <Button DockPanel.Dock="Bottom" Content="Apply to selected clip (as incoming)" Margin="0,6,0,0" Click="OnApplyTransition"/>
+                        <ListBox Name="TransitionsList" SelectionChanged="TransitionsList_SelectionChanged" Background="{DynamicResource BListBg}">
+                            <ListBoxItem>Cut</ListBoxItem>
+                            <ListBoxItem>Fade</ListBoxItem>
+                            <ListBoxItem>Cross Dissolve</ListBoxItem>
+                            <ListBoxItem>Dip to Black</ListBoxItem>
+                            <ListBoxItem>Dip to White</ListBoxItem>
+                            <ListBoxItem>Wipe</ListBoxItem>
+                        </ListBox>
+                    </DockPanel>
+                </TabItem>
+                <TabItem Header="Text">
+                    <StackPanel Margin="10">
+                        <TextBox Name="TitleTextBox" Watermark="Enter title text..." AcceptsReturn="False"/>
+                        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" Margin="0,8,0,0">
+                            <TextBlock Text="Font" VerticalAlignment="Center" Margin="0,4"/>
+                            <ComboBox Name="FontCombo" Grid.Column="1" Margin="8,2,0,2" MinWidth="150"/>
+                            <TextBlock Grid.Row="1" Text="Size" VerticalAlignment="Center"/>
+                            <NumericUpDown Name="FontSizeB" Grid.Row="1" Grid.Column="1" Margin="8,2,0,2" Minimum="8" Maximum="300" Value="42"/>
+                            <TextBlock Grid.Row="2" Text="Style" VerticalAlignment="Center"/>
+                            <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Margin="8,2,0,2">
+                                <ToggleButton Name="BoldTgl" Content="B" Width="34" FontWeight="Bold"/>
+                                <ToggleButton Name="ItalicTgl" Content="I" Width="34" Margin="6,0,0,0" FontStyle="Italic"/>
+                                <ComboBox Name="AlignCombo" SelectedIndex="1" Margin="10,0,0,0" Width="100">
+                                    <ComboBoxItem Content="Left"/>
+                                    <ComboBoxItem Content="Center"/>
+                                    <ComboBoxItem Content="Right"/>
+                                </ComboBox>
+                            </StackPanel>
+                            <TextBlock Grid.Row="3" Text="Color" VerticalAlignment="Center"/>
+                            <TextBox Name="ColorHexBox" Grid.Row="3" Grid.Column="1" Text="#FFFFFF" Margin="8,2,0,2"/>
+                            <TextBlock Grid.Row="4" Text="Opacity %" VerticalAlignment="Center"/>
+                            <Slider Name="TOpacitySlider" Grid.Row="4" Grid.Column="1" Minimum="0" Maximum="100" Value="100" VerticalAlignment="Center" Margin="8,2,0,2"/>
+                            <StackPanel Grid.Row="5" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,8,0,0">
+                                <CheckBox Name="ShadowChk" Content="Shadow"/>
+                                <CheckBox Name="OutlineChk" Content="Outline" Margin="16,0,0,0"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="6" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,10,0,0">
+                                <Button Content="Apply Title to Clip" Padding="10,4" Click="OnApplyTitle"/>
+                                <Button Content="Remove Title" Padding="10,4" Margin="8,0,0,0" Click="OnRemoveTitle"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </TabItem>
+            </TabControl>
+        </Grid>
+    </DockPanel>
+</UserControl>
+
+

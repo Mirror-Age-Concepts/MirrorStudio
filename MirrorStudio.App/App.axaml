@@ -1,0 +1,47 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="MirrorStudio.App.App">
+    <Application.Styles>
+        <FluentTheme/>
+    </Application.Styles>
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Default">
+                    <SolidColorBrush x:Key="BWindow" Color="#0F0F0F"/>
+                    <SolidColorBrush x:Key="BPanel" Color="#1E1E1E"/>
+                    <SolidColorBrush x:Key="BPanelAlt" Color="#2A2A2A"/>
+                    <SolidColorBrush x:Key="BInset" Color="#161616"/>
+                    <SolidColorBrush x:Key="BTrackHead" Color="#202020"/>
+                    <SolidColorBrush x:Key="BLaneDark" Color="#101010"/>
+                    <SolidColorBrush x:Key="BLaneLight" Color="#161616"/>
+                    <SolidColorBrush x:Key="BListBg" Color="#181818"/>
+                    <SolidColorBrush x:Key="BBorder" Color="#333333"/>
+                    <SolidColorBrush x:Key="BTxtPri" Color="#EEEEEE"/>
+                    <SolidColorBrush x:Key="BTxtHigh" Color="#CCCCCC"/>
+                    <SolidColorBrush x:Key="BTxtMid" Color="#999999"/>
+                    <SolidColorBrush x:Key="BTxtLow" Color="#666666"/>
+                    <SolidColorBrush x:Key="BTxtDim" Color="#555555"/>
+                    <SolidColorBrush x:Key="BAccent" Color="#4FC3F7"/>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="BWindow" Color="#F3F3F3"/>
+                    <SolidColorBrush x:Key="BPanel" Color="#FFFFFF"/>
+                    <SolidColorBrush x:Key="BPanelAlt" Color="#E8E8E8"/>
+                    <SolidColorBrush x:Key="BInset" Color="#ECECEC"/>
+                    <SolidColorBrush x:Key="BTrackHead" Color="#E0E0E0"/>
+                    <SolidColorBrush x:Key="BLaneDark" Color="#E4E4E4"/>
+                    <SolidColorBrush x:Key="BLaneLight" Color="#EEEEEE"/>
+                    <SolidColorBrush x:Key="BListBg" Color="#F7F7F7"/>
+                    <SolidColorBrush x:Key="BBorder" Color="#C9C9C9"/>
+                    <SolidColorBrush x:Key="BTxtPri" Color="#111111"/>
+                    <SolidColorBrush x:Key="BTxtHigh" Color="#333333"/>
+                    <SolidColorBrush x:Key="BTxtMid" Color="#555555"/>
+                    <SolidColorBrush x:Key="BTxtLow" Color="#777777"/>
+                    <SolidColorBrush x:Key="BTxtDim" Color="#888888"/>
+                    <SolidColorBrush x:Key="BAccent" Color="#0277BD"/>
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

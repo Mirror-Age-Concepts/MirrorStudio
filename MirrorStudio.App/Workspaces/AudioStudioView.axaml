@@ -1,0 +1,135 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="MirrorStudio.App.Workspaces.AudioStudioView">
+    <Grid ColumnDefinitions="230,*,300">
+        <Border Grid.Column="0" Background="{DynamicResource BPanel}">
+            <DockPanel Margin="8">
+                <TextBlock DockPanel.Dock="Top" Text="AUDIO TRACKS" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,4"/>
+                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
+                    <Button Content="+ Track" Width="70" Margin="2" Click="OnAddTrack"/>
+                    <Button Content="Remove" Width="80" Margin="2" Click="OnRemoveTrack"/>
+                </StackPanel>
+                <ListBox Name="TracksList"/>
+            </DockPanel>
+        </Border>
+
+        <Border Grid.Column="1" Background="{DynamicResource BPanelAlt}">
+            <DockPanel>
+                <Border DockPanel.Dock="Top" Background="{DynamicResource BInset}" Padding="8">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Name="ActiveTrackText" Text="No track selected" Foreground="{DynamicResource BTxtHigh}" VerticalAlignment="Center"/>
+                        <Button Content="Import Audio..." Margin="16,0,0,0" Click="OnImportAudio"/>
+                    </StackPanel>
+                </Border>
+                <StackPanel DockPanel.Dock="Bottom" Margin="8">
+                    <Slider Name="AudioPlayhead" Minimum="0" Maximum="100" Value="0"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <Button Content="Play" Width="70" Margin="2" Click="OnPlay"/>
+                        <Button Content="Stop" Width="70" Margin="2" Click="OnStop"/>
+                        <TextBlock Name="AudioTimeText" Text="0.0s / 30.0s" Foreground="{DynamicResource BTxtMid}" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                    </StackPanel>
+                </StackPanel>
+                <Border Background="{DynamicResource BTrackHead}" Margin="8" CornerRadius="3">
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="WAVEFORM" Foreground="{DynamicResource BTxtLow}" FontSize="11" HorizontalAlignment="Left" Margin="10,8,0,0"/>
+                        <ItemsControl Name="WaveformBars" Margin="10,4,10,10">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Rectangle Width="4" Height="{Binding Height}" Fill="#FF2E9CCA"
+                                               VerticalAlignment="Center" Margin="1"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Name="WaveHintText" Text="Add or select a track to view its waveform" Foreground="{DynamicResource BTxtDim}" FontSize="11" Margin="10,0,0,10"/>
+                    </StackPanel>
+                </Border>
+            </DockPanel>
+        </Border>
+
+        <TabControl Grid.Column="2" Background="{DynamicResource BPanel}">
+            <TabItem Header="Mixer">
+                <StackPanel Margin="12">
+                    <TextBlock Text="TRACK" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,4,0,8"/>
+                    <TextBlock Text="Volume" Foreground="{DynamicResource BTxtHigh}" Margin="0,4"/>
+                    <Slider Name="VolumeSlider" Minimum="0" Maximum="100" Value="80" ValueChanged="OnMixerChanged"/>
+                    <TextBlock Text="Pan" Foreground="{DynamicResource BTxtHigh}" Margin="0,8"/>
+                    <Slider Name="PanSlider" Minimum="-100" Maximum="100" Value="0" ValueChanged="OnMixerChanged"/>
+                    <Grid ColumnDefinitions="*,*" Margin="0,10,0,0">
+                        <TextBlock Text="Gain dB" Foreground="{DynamicResource BTxtHigh}" VerticalAlignment="Center"/>
+                        <NumericUpDown Name="GainDbNud" Grid.Column="1" Minimum="-48" Maximum="12" Increment="0.5" ValueChanged="OnMixerNum"/>
+                        <TextBlock Grid.Row="1" Text="Fade In s" Foreground="{DynamicResource BTxtHigh}" VerticalAlignment="Center"/>
+                        <NumericUpDown Name="FadeInNud" Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="60" Increment="0.5" ValueChanged="OnMixerNum"/>
+                        <TextBlock Grid.Row="2" Text="Fade Out s" Foreground="{DynamicResource BTxtHigh}" VerticalAlignment="Center"/>
+                        <NumericUpDown Name="FadeOutNud" Grid.Row="2" Grid.Column="1" Minimum="0" Maximum="60" Increment="0.5" ValueChanged="OnMixerNum"/>
+                    </Grid>
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <CheckBox Name="MuteCheck" Content="Mute" Foreground="{DynamicResource BTxtHigh}"/>
+                        <CheckBox Name="SoloCheck" Content="Solo" Foreground="{DynamicResource BTxtHigh}" Margin="20,0,0,0"/>
+                    </StackPanel>
+                    <Separator Margin="0,14"/>
+                    <TextBlock Text="MASTER" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,4,0,8"/>
+                    <TextBlock Text="Master Volume" Foreground="{DynamicResource BTxtHigh}" Margin="0,4"/>
+                    <Slider Minimum="0" Maximum="100" Value="90"/>
+                </StackPanel>
+            </TabItem>
+            <TabItem Header="Equalizer">
+                <StackPanel Margin="12">
+                    <ComboBox Name="EqPresetCombo" SelectedIndex="0" Width="160" SelectionChanged="OnEqPresetChanged">
+                        <ComboBoxItem Content="Flat"/>
+                        <ComboBoxItem Content="Bass Boost"/>
+                        <ComboBoxItem Content="Vocal Clarity"/>
+                        <ComboBoxItem Content="Treble Boost"/>
+                    </ComboBox>
+                    <StackPanel Orientation="Horizontal" Margin="0,16,0,0" HorizontalAlignment="Center" Spacing="18">
+                        <StackPanel>
+                            <Slider Name="Eq60" Orientation="Vertical" Minimum="-12" Maximum="12" Value="0" Height="110" IsDirectionReversed="True"/>
+                            <TextBlock Text="60Hz" Foreground="{DynamicResource BTxtHigh}" FontSize="10" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel>
+                            <Slider Name="Eq150" Orientation="Vertical" Minimum="-12" Maximum="12" Value="0" Height="110" IsDirectionReversed="True"/>
+                            <TextBlock Text="150Hz" Foreground="{DynamicResource BTxtHigh}" FontSize="10" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel>
+                            <Slider Name="Eq400" Orientation="Vertical" Minimum="-12" Maximum="12" Value="0" Height="110" IsDirectionReversed="True"/>
+                            <TextBlock Text="400Hz" Foreground="{DynamicResource BTxtHigh}" FontSize="10" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel>
+                            <Slider Name="Eq1k" Orientation="Vertical" Minimum="-12" Maximum="12" Value="0" Height="110" IsDirectionReversed="True"/>
+                            <TextBlock Text="1kHz" Foreground="{DynamicResource BTxtHigh}" FontSize="10" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel>
+                            <Slider Name="Eq2400" Orientation="Vertical" Minimum="-12" Maximum="12" Value="0" Height="110" IsDirectionReversed="True"/>
+                            <TextBlock Text="2.4kHz" Foreground="{DynamicResource BTxtHigh}" FontSize="10" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel>
+                            <Slider Name="Eq15k" Orientation="Vertical" Minimum="-12" Maximum="12" Value="0" Height="110" IsDirectionReversed="True"/>
+                            <TextBlock Text="15kHz" Foreground="{DynamicResource BTxtHigh}" FontSize="10" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </StackPanel>
+                    <TextBlock Text="dB" Foreground="{DynamicResource BTxtDim}" FontSize="10" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                </StackPanel>
+            </TabItem>
+            <TabItem Header="Noise Reduction">
+                <StackPanel Margin="12">
+                    <CheckBox Name="NrEnableCheck" Content="Enable noise reduction" Foreground="{DynamicResource BTxtHigh}" Margin="0,4"/>
+                    <TextBlock Text="Strength" Foreground="{DynamicResource BTxtHigh}" Margin="0,14,0,4"/>
+                    <Slider Name="NrStrengthSlider" Minimum="0" Maximum="100" Value="50"/>
+                    <TextBlock Text="Profile" Foreground="{DynamicResource BTxtHigh}" Margin="0,14,0,4"/>
+                    <ComboBox Name="NrProfileCombo" SelectedIndex="1" Width="180">
+                        <ComboBoxItem Content="Light"/>
+                        <ComboBoxItem Content="Medium"/>
+                        <ComboBoxItem Content="Strong"/>
+                    </ComboBox>
+                    <Button Content="Capture Noise Print" Margin="0,16,0,0" Click="OnCaptureNoisePrint"/>
+                    <Button Content="Apply Reduction" Margin="0,8,0,0" Click="OnApplyReduction"/>
+                    <TextBlock Name="NrStatusText" Text="" Foreground="{DynamicResource BAccent}" Margin="0,12,0,0" TextWrapping="Wrap"/>
+                </StackPanel>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</UserControl>
