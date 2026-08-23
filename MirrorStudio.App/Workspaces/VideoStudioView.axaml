@@ -163,6 +163,12 @@
                                     <ComboBoxItem Content="Grayscale"/>
                                     <ComboBoxItem Content="Sepia"/>
                                     <ComboBoxItem Content="Vignette"/>
+                                    <ComboBoxItem Content="Glow"/>
+                                    <ComboBoxItem Content="Noise"/>
+                                    <ComboBoxItem Content="Invert"/>
+                                    <ComboBoxItem Content="Noise Reduction"/>
+                                    <ComboBoxItem Content="LUT"/>
+                                    <ComboBoxItem Content="Chroma Key"/>
                                 </ComboBox>
                                 <Button Grid.Column="1" Content="Add" Margin="6,0,0,0" Padding="10,4" Click="OnAddEffect"/>
                                 <Button Grid.Column="2" Content="Remove" Margin="6,0,0,0" Padding="10,4" Click="OnRemoveEffect"/>
@@ -173,7 +179,13 @@
                 </TabItem>
                 <TabItem Header="Transitions">
                     <DockPanel Margin="8">
-                        <Button DockPanel.Dock="Bottom" Content="Apply to selected clip (as incoming)" Margin="0,6,0,0" Click="OnApplyTransition"/>
+                        <StackPanel DockPanel.Dock="Bottom" Margin="0,6,0,0">
+                            <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,6">
+                                <TextBlock Text="Duration (s)" VerticalAlignment="Center" FontSize="11"/>
+                                <TextBox Name="TransitionDurationBox" Grid.Column="1" Margin="8,0,0,0" Text="0.5"/>
+                            </Grid>
+                            <Button Content="Apply to selected clip (as incoming)" Click="OnApplyTransition"/>
+                        </StackPanel>
                         <ListBox Name="TransitionsList" SelectionChanged="TransitionsList_SelectionChanged" Background="{DynamicResource BListBg}">
                             <ListBoxItem>Cut</ListBoxItem>
                             <ListBoxItem>Fade</ListBoxItem>
@@ -181,6 +193,8 @@
                             <ListBoxItem>Dip to Black</ListBoxItem>
                             <ListBoxItem>Dip to White</ListBoxItem>
                             <ListBoxItem>Wipe</ListBoxItem>
+                            <ListBoxItem>Slide</ListBoxItem>
+                            <ListBoxItem>Zoom</ListBoxItem>
                         </ListBox>
                     </DockPanel>
                 </TabItem>

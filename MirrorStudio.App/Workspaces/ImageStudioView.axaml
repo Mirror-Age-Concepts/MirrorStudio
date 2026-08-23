@@ -5,6 +5,11 @@
         <Border Grid.Column="0" Background="{DynamicResource BPanel}">
             <ScrollViewer>
                 <StackPanel Margin="10">
+                    <TextBlock Text="MEDIA (drag → canvas or double-click)" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,4"/>
+                    <ScrollViewer Height="150" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Name="ImageMediaHost"/>
+                    </ScrollViewer>
+
                     <TextBlock Text="TOOLS" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,4"/>
                     <StackPanel Orientation="Horizontal">
                         <Button Content="Brush" Width="70" Margin="2" Click="OnBrushTool"/>
@@ -46,7 +51,7 @@
                         <Button Content="Save Copy..." Margin="8,0,0,0" Click="OnSaveImage"/>
                     </StackPanel>
                 </Border>
-                <Border Background="{DynamicResource BTrackHead}" Margin="8" CornerRadius="3">
+                <Border Name="CanvasBorder" Background="{DynamicResource BTrackHead}" Margin="8" CornerRadius="3">
                     <Grid>
                         <TextBlock Name="CanvasHintText" Text="CANVAS&#10;(no image open)" Foreground="{DynamicResource BTxtDim}" FontSize="18"
                                    HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center"/>

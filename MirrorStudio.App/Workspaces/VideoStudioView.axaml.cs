@@ -32,9 +32,7 @@ namespace MirrorStudio.App.Workspaces
         private MediaEntry? _selectedMediaEntry;
 
         // drag from media library
-        private const string MediaDropFormat = "mirrorstudio/media-path";
-        private MediaEntry? _pressEntry;
-        private Point _mediaPressPoint;
+        private const string MediaDropFormat = Services.MediaCardFactory.MediaDropFormat;
 
         // async video frame cache: key = "path|time(0.25s)" → bitmap; extraction dedup set
         private readonly Dictionary<string, Bitmap?> _frameCache = new();
@@ -249,8 +247,13 @@ namespace MirrorStudio.App.Workspaces
                 });
 
                 var wrap = new WrapPanel { ItemWidth = 106, Orientation = Avalonia.Layout.Orientation.Horizontal };
+                _mediaCards.Clear();
                 foreach (var entry in items)
-                    wrap.Children.Add(BuildMediaCard(entry));
+                {
+                    var card = BuildMediaCard(entry);
+                    _mediaCards[entry] = card;
+                    wrap.Children.Add(card);
+                }
                 MediaListHost.Children.Add(wrap);
             }
 
@@ -275,18 +278,6 @@ namespace MirrorStudio.App.Workspaces
             var thumbPath = string.IsNullOrEmpty(entry.ThumbnailRelativePath)
                 ? null
                 : _session.ResolvePath(entry.ThumbnailRelativePath);
-
-            System.Windows.Input.ICommand tapCommand = new SimpleRelayCommand(() =>
-            {
-                _selectedMediaEntry = entry;
-                _session.SelectMedia(_session.ResolvePath(entry.RelativePath) ?? entry.RelativePath);
-                RebuildMediaList();
-            });
-            System.Windows.Input.ICommand dblCommand = new SimpleRelayCommand(() =>
-            {
-                _selectedMediaEntry = entry;
-                AddEntryToTimeline(entry);
-            });
 
             Control content;
             bool hasVisualThumb = thumbPath != null &&
@@ -351,43 +342,38 @@ namespace MirrorStudio.App.Workspaces
             ((Grid)card.Child).Children.Add(label);
             Grid.SetRow(label, 1);
 
-            card.PointerPressed += (_, e) =>
-            {
-                if (e.GetCurrentPoint(card).Properties.IsLeftButtonPressed)
+            // shared gesture wiring: drag starts after a 6px move, double-click
+            // inserts; tapping only restyles selection (never rebuilds the list,
+            // which would detach this card mid-gesture and break dragging)
+            Services.MediaCardFactory.MakeInteractive(
+                card,
+                entry.RelativePath,
+                tap: () =>
                 {
-                    tapCommand.Execute(null);
-                    _pressEntry = entry;
-                    _mediaPressPoint = e.GetPosition(card);
-                    e.Handled = true;
-                }
-            };
-            card.PointerMoved += async (_, e) =>
-            {
-                if (_pressEntry != entry) return;
-                if (!e.GetCurrentPoint(card).Properties.IsLeftButtonPressed) return;
-                var d = e.GetPosition(card) - _mediaPressPoint;
-                if (Math.Sqrt(d.X * d.X + d.Y * d.Y) < 6) return;   // drag threshold
-
-                _pressEntry = null;
-                var data = new DataObject();
-                data.Set(MediaDropFormat, entry.RelativePath);
-                await DragDrop.DoDragDrop(e, data, DragDropEffects.Copy);
-            };
-            card.PointerReleased += (_, _) => _pressEntry = null;
-            card.DoubleTapped += (_, _) => { _pressEntry = null; dblCommand.Execute(null); };
+                    _selectedMediaEntry = entry;
+                    _session.SelectMedia(_session.ResolvePath(entry.RelativePath) ?? entry.RelativePath);
+                    RestyleMediaSelection();
+                },
+                doubleTap: () =>
+                {
+                    _selectedMediaEntry = entry;
+                    RestyleMediaSelection();
+                    AddEntryToTimeline(entry);
+                });
 
             return card;
         }
 
-        private sealed class SimpleRelayCommand : System.Windows.Input.ICommand
+        private readonly Dictionary<MediaEntry, Border> _mediaCards = new();
+
+        private void RestyleMediaSelection()
         {
-            private readonly System.Action _run;
-            public SimpleRelayCommand(System.Action run) => _run = run;
-#pragma warning disable CS0067
-            public event EventHandler? CanExecuteChanged;
-#pragma warning restore CS0067
-            public bool CanExecute(object? parameter) => true;
-            public void Execute(object? parameter) => _run();
+            foreach (var (entry, card) in _mediaCards)
+            {
+                bool selected = ReferenceEquals(entry, _selectedMediaEntry);
+                card.BorderBrush = selected ? Res("BAccent") : Res("BBorder");
+                card.BorderThickness = new Thickness(selected ? 1.5 : 0.75);
+            }
         }
 
         private static string IconFor(string type) => type switch
@@ -1614,7 +1600,10 @@ namespace MirrorStudio.App.Workspaces
         {
             var clip = _session.SelectedClip;
             AppliedEffectsList.ItemsSource = clip?.Effects?
-                .Select(fx => $"{fx.Type}: {fx.Amount:0}%").ToList() ?? new List<string>();
+                .Select(fx => fx.Type == "Lut" && fx.Settings.TryGetValue("path", out var p)
+                    ? $"Lut: {System.IO.Path.GetFileName(p)}"
+                    : $"{fx.Type}: {fx.Amount:0}%")
+                .ToList() ?? new List<string>();
             if (resetSelection) AppliedEffectsList.SelectedIndex = -1;
         }
 
@@ -1622,8 +1611,27 @@ namespace MirrorStudio.App.Workspaces
         {
             var clip = _session.SelectedClip;
             if (clip == null) { PromptSelectClip(); return; }
-            string name = (EffectCombo.SelectedItem as ComboBoxItem)?.Content as string ?? "Blur";
-            clip.Effects.Add(new EffectModel { Type = name, Amount = EffectAmountSlider.Value });
+            string display = (EffectCombo.SelectedItem as ComboBoxItem)?.Content as string ?? "Blur";
+            string type = display switch
+            {
+                "LUT" => "Lut",
+                "Chroma Key" => "ChromaKey",
+                _ => display,
+            };
+
+            var fx = new EffectModel { Type = type, Amount = EffectAmountSlider.Value };
+
+            if (type == "Lut")
+            {
+                var dialogs = new Services.DialogService(TopLevel.GetTopLevel(this) as Window
+                    ?? throw new InvalidOperationException("No top-level window"));
+                var path = dialogs.PickFileAsync("Select LUT (.cube)",
+                    ("Cube LUT", ["cube"])).GetAwaiter().GetResult();
+                if (string.IsNullOrEmpty(path)) return;
+                fx.Settings["path"] = path;
+            }
+
+            clip.Effects.Add(fx);
             RebuildEffectsList();
             AppliedEffectsList.SelectedIndex = clip.Effects.Count - 1;
             RenderPreviewFrame();
@@ -1646,6 +1654,12 @@ namespace MirrorStudio.App.Workspaces
             var clip = _session.SelectedClip;
             if (clip == null) { PromptSelectClip(); return; }
             string name = (TransitionsList.SelectedItem as ListBoxItem)?.Content as string ?? "Cut";
+            double duration = 0.5;
+            if (TransitionDurationBox != null &&
+                !double.TryParse(TransitionDurationBox.Text, System.Globalization.CultureInfo.InvariantCulture, out duration) ||
+                duration <= 0)
+                duration = 0.5;
+
             clip.TransitionIn = name switch
             {
                 "Fade" => new ClipTransition { Kind = TransitionKind.Fade },
@@ -1653,8 +1667,14 @@ namespace MirrorStudio.App.Workspaces
                 "Dip to Black" => new ClipTransition { Kind = TransitionKind.DipToBlack },
                 "Dip to White" => new ClipTransition { Kind = TransitionKind.DipToWhite },
                 "Wipe" => new ClipTransition { Kind = TransitionKind.Wipe },
-                _ => new ClipTransition { Kind = TransitionKind.Cut }
+                "Slide" => new ClipTransition { Kind = TransitionKind.Slide },
+                "Zoom" => new ClipTransition { Kind = TransitionKind.Zoom },
+                _ => null
             };
+
+            if (clip.TransitionIn is { } t)
+                t.DurationSeconds = duration;
+
             RenderPreviewFrame();
         }
 
@@ -1698,6 +1718,35 @@ namespace MirrorStudio.App.Workspaces
                 VolSlider.Value = clip.Volume; PanSlider.Value = clip.Pan;
                 SetNum(GainDbB, clip.GainDb); SetNum(FadeInB, clip.FadeIn); SetNum(FadeOutB, clip.FadeOut);
                 MuteChk.IsChecked = clip.IsMuted; SoloChk.IsChecked = clip.IsSolo;
+
+                if (TransitionsList != null)
+                {
+                    string display = clip.TransitionIn?.Kind switch
+                    {
+                        TransitionKind.Fade => "Fade",
+                        TransitionKind.CrossDissolve => "Cross Dissolve",
+                        TransitionKind.DipToBlack => "Dip to Black",
+                        TransitionKind.DipToWhite => "Dip to White",
+                        TransitionKind.Wipe => "Wipe",
+                        TransitionKind.Slide => "Slide",
+                        TransitionKind.Zoom => "Zoom",
+                        _ => "Cut",
+                    };
+                    TransitionsList.SelectedIndex = -1;
+                    var items = TransitionsList.Items.ToList();
+                    for (int i = 0; i < items.Count; i++)
+                    {
+                        if ((items[i] as ListBoxItem)?.Content as string == display)
+                        {
+                            TransitionsList.SelectedIndex = i;
+                            break;
+                        }
+                    }
+
+                    if (TransitionDurationBox != null)
+                        TransitionDurationBox.Text =
+                            (clip.TransitionIn?.DurationSeconds ?? 0.5).ToString("0.##");
+                }
                 if (clip.Title != null)
                 {
                     TitleTextBox.Text = clip.Title.Text;
@@ -1759,7 +1808,7 @@ namespace MirrorStudio.App.Workspaces
         private void OnEditorKeyDown(object? sender, KeyEventArgs e)
         {
             if (IsTextEntryFocus(TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement())) return;
-            if (_pressEntry != null) return;   // mid library-drag
+            if (Services.MediaCardFactory.IsDragging) return;   // mid library-drag
 
             var tl = Tl;
             double fps = Math.Max(1, _session.CurrentProject?.FrameRate ?? 30);

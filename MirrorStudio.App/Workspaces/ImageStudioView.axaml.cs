@@ -1,7 +1,13 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using MirrorStudio.Core.Models;
 using System.Collections.ObjectModel;
+using System.IO;
+using System.Linq;
+using IOPath = System.IO.Path;
 
 namespace MirrorStudio.App.Workspaces
 {
@@ -24,6 +30,12 @@ namespace MirrorStudio.App.Workspaces
             LayersList.SelectedIndex = 0;
             LayersList.SelectionChanged += OnLayerSelectionChanged;
             _session.ProjectChanged += OnProjectChanged;
+
+            // media library: double-click or drag an image onto the canvas
+            CanvasBorder.AddHandler(DragDrop.DragOverEvent, OnMediaDragOver);
+            CanvasBorder.AddHandler(DragDrop.DropEvent, OnMediaDrop);
+
+            PopulateImageMedia();
         }
 
         private void OnProjectChanged()
@@ -35,6 +47,7 @@ namespace MirrorStudio.App.Workspaces
                     CanvasHintText.Text = $"CANVAS {_session.CurrentProject.Width}x{_session.CurrentProject.Height}";
                     PropDocText.Text = $"Canvas: {_session.CurrentProject.Width} x {_session.CurrentProject.Height}\nProject: {_session.CurrentProject.Name}";
                 }
+                PopulateImageMedia();
             });
         }
 
@@ -95,22 +108,182 @@ namespace MirrorStudio.App.Workspaces
             var result = await dlg.ShowAsync(owner);
             if (result == null || result.Length == 0) return;
 
+            OpenImageFile(result[0], owner);
+        }
+
+        private void OpenImageFile(string path, Window? owner)
+        {
             try
             {
-                _imagePath = result[0];
+                _imagePath = path;
                 _bitmap = new Bitmap(_imagePath);
                 CanvasImage.Source = _bitmap;
                 CanvasHintText.Text = "";
                 var fileName = System.IO.Path.GetFileName(_imagePath);
-                _layers.Add(fileName);
+                if (!_layers.Contains(fileName))
+                    _layers.Add(fileName);
                 LayersList.SelectedIndex = _layers.Count - 1;
                 PropDocText.Text = $"File: {_imagePath}\nSize: {_bitmap.Size.Width:0} x {_bitmap.Size.Height:0}px";
                 SetActiveTool(_activeTool);
             }
             catch (System.Exception ex)
             {
-                await MessageBox.Show(owner, "Open image error", ex.Message);
+                _ = MessageBox.Show(owner ?? (this.VisualRoot as Window), "Open image error", ex.Message);
             }
+        }
+
+        // ---------- media library (drag & drop / double-click) ----------
+
+        private MediaEntry? _selectedImageEntry;
+        private readonly System.Collections.Generic.Dictionary<MediaEntry, Border> _imageCards = new();
+
+        private static IBrush? Res(string key) =>
+            Avalonia.Application.Current is { } app && app.TryFindResource(key, out var v) ? v as IBrush : null;
+
+        private void PopulateImageMedia()
+        {
+            if (ImageMediaHost == null) return;
+            ImageMediaHost.Children.Clear();
+            _imageCards.Clear();
+
+            var items = (_session.CurrentProject?.Media ?? new System.Collections.Generic.List<MediaEntry>())
+                .Where(m => m.MediaType is "Images" or "Graphics")
+                .ToList();
+
+            if (items.Count == 0)
+            {
+                ImageMediaHost.Children.Add(new TextBlock
+                {
+                    Text = "No images yet.\nImport media in Video Studio.",
+                    Foreground = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#808080")),
+                    FontSize = 10.5,
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Avalonia.Thickness(2, 6, 0, 0),
+                });
+                return;
+            }
+
+            foreach (var entry in items)
+            {
+                var card = BuildImageCard(entry);
+                _imageCards[entry] = card;
+                ImageMediaHost.Children.Add(card);
+            }
+        }
+
+        private Border BuildImageCard(MediaEntry entry)
+        {
+            bool selected = ReferenceEquals(entry, _selectedImageEntry);
+
+            Control content;
+            var thumbPath = string.IsNullOrEmpty(entry.ThumbnailRelativePath)
+                ? null
+                : _session.ResolvePath(entry.ThumbnailRelativePath);
+
+            if (thumbPath != null && File.Exists(thumbPath))
+            {
+                try
+                {
+                    content = new Avalonia.Controls.Image
+                    {
+                        Source = new Bitmap(thumbPath),
+                        Stretch = Stretch.UniformToFill,
+                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+                    };
+                }
+                catch
+                {
+                    content = ToolIcon();
+                }
+            }
+            else
+            {
+                content = ToolIcon();
+            }
+
+            var card = new Border
+            {
+                Height = 64,
+                Margin = new Avalonia.Thickness(2),
+                CornerRadius = new Avalonia.CornerRadius(4),
+                Background = Res("BInset"),
+                BorderThickness = new Avalonia.Thickness(selected ? 1.5 : 0.75),
+                BorderBrush = selected ? Res("BAccent") : Res("BBorder"),
+                Tag = entry,
+                Child = new Grid { RowDefinitions = new Avalonia.Controls.RowDefinitions("*,Auto") },
+            };
+
+            Grid.SetRow(content, 0);
+            ((Grid)card.Child!).Children.Add(content);
+            var label = new TextBlock
+            {
+                Text = IOPath.GetFileNameWithoutExtension(entry.FileName),
+                FontSize = 9.5,
+                Margin = new Avalonia.Thickness(4, 1, 4, 2),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                Foreground = Res("BTxtHigh"),
+            };
+            Grid.SetRow(label, 1);
+            ((Grid)card.Child).Children.Add(label);
+
+            Services.MediaCardFactory.MakeInteractive(
+                card,
+                entry.RelativePath,
+                tap: () =>
+                {
+                    _selectedImageEntry = entry;
+                    RestyleImageSelection();
+                },
+                doubleTap: () =>
+                {
+                    _selectedImageEntry = entry;
+                    RestyleImageSelection();
+                    OpenEntry(entry);
+                });
+
+            return card;
+        }
+
+        private void RestyleImageSelection()
+        {
+            foreach (var (item, c) in _imageCards)
+            {
+                bool selected = ReferenceEquals(item, _selectedImageEntry);
+                c.BorderBrush = selected ? Res("BAccent") : Res("BBorder");
+                c.BorderThickness = new Avalonia.Thickness(selected ? 1.5 : 0.75);
+            }
+        }
+
+        private static TextBlock ToolIcon() => new()
+        {
+            Text = "🖼",
+            FontSize = 22,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+        };
+
+        private void OpenEntry(MediaEntry entry)
+        {
+            var path = _session.ResolvePath(entry.RelativePath) ?? entry.RelativePath;
+            if (!File.Exists(path)) return;
+            OpenImageFile(path, this.VisualRoot as Window);
+            ActiveToolText.Text = $"Opened from library: {IOPath.GetFileName(path)}";
+        }
+
+        private MediaEntry? EntryFromPayload(DragEventArgs e)
+        {
+            var rel = Services.MediaCardFactory.PayloadFrom(e);
+            if (rel == null) return null;
+            return (_session.CurrentProject?.Media ?? new System.Collections.Generic.List<MediaEntry>())
+                .FirstOrDefault(m => m.RelativePath.Equals(rel, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private void OnMediaDragOver(object? sender, DragEventArgs e) =>
+            e.DragEffects = EntryFromPayload(e) != null ? DragDropEffects.Copy : DragDropEffects.None;
+
+        private void OnMediaDrop(object? sender, DragEventArgs e)
+        {
+            var entry = EntryFromPayload(e);
+            if (entry != null) OpenEntry(entry);
         }
 
         public async void OnSaveImage(object? sender, RoutedEventArgs e)

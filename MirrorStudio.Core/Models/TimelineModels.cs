@@ -16,7 +16,9 @@ namespace MirrorStudio.Core.Models
         CrossDissolve,
         DipToBlack,
         DipToWhite,
-        Wipe
+        Wipe,
+        Slide,
+        Zoom
     }
 
     public class ClipTransition
@@ -29,6 +31,9 @@ namespace MirrorStudio.Core.Models
     {
         public string Type { get; set; } = "Brightness";
         public double Amount { get; set; }
+
+        /// <summary>Named extras (LUT path, key color…) beyond the single slider.</summary>
+        public Dictionary<string, string> Settings { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         public string Display => $"{Type}: {Amount:0.##}";
     }

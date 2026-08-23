@@ -1,8 +1,11 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using MirrorStudio.Core.Models;
 using System.Collections.ObjectModel;
 using System.Linq;
+using IOPath = System.IO.Path;
 
 namespace MirrorStudio.App.Workspaces
 {
@@ -26,8 +29,12 @@ namespace MirrorStudio.App.Workspaces
         private readonly SessionState _session;
         private readonly ObservableCollection<AudioTrackVm> _tracks = new();
         private readonly ObservableCollection<WaveBarVm> _bars = new();
+
+        // master-clock driven playback (spec M9 §16) — same clock pattern the video engine uses
+        private readonly MirrorStudio.Audio.Services.AudioEngine _engine =
+            new(new MirrorStudio.Audio.Services.MasterClock());
+        private double _playDuration = 30;
         private int _trackCounter;
-        private bool _playing;
 
         public AudioStudioView(SessionState session)
         {
@@ -39,43 +46,69 @@ namespace MirrorStudio.App.Workspaces
             MuteCheck.IsCheckedChanged += OnMuteChanged;
             SoloCheck.IsCheckedChanged += OnMuteChanged;
             AddDemoTracks();
+
+            _engine.PositionChanged += (_, t) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                AudioPlayhead.Value = System.Math.Clamp(t / System.Math.Max(0.1, _playDuration) * 100, 0, 100);
+                AudioTimeText.Text = $"{t:F1}s / {_playDuration:F1}s";
+            });
+            _engine.Ended += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                AudioPlayhead.Value = 0;
+                AudioTimeText.Text = $"0.0s / {_playDuration:F1}s";
+            });
+
             _session.ProjectChanged += OnProjectChanged;
+
+            // media library drop targets (drag an audio file anywhere on tracks/waveform)
+            TracksList.AddHandler(DragDrop.DragOverEvent, OnMediaDragOver);
+            TracksList.AddHandler(DragDrop.DropEvent, OnMediaDrop);
+            WaveBorder.AddHandler(DragDrop.DragOverEvent, OnMediaDragOver);
+            WaveBorder.AddHandler(DragDrop.DropEvent, OnMediaDrop);
+
+            PopulateAudioMedia();
         }
 
         private void OnProjectChanged()
         {
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
-                var tl = _session.Timeline;
-                if (tl == null || !tl.AudioClips.Any())
-                {
-                    // fall back to media-derived demo tracks
-                    var project = _session.CurrentProject;
-                    if (project == null) return;
-                    foreach (var audio in project.Media.Where(m => m.MediaType.ToLowerInvariant() == "audio"))
-                    {
-                        if (_tracks.All(t => t.Name != audio.FileName))
-                            _tracks.Add(new AudioTrackVm { Name = audio.FileName });
-                    }
-                    return;
-                }
-
-                int keep = TracksList.SelectedIndex;
-                _tracks.Clear();
-                foreach (var clip in tl.AudioClips.OrderBy(c => c.TrackIndex).ThenBy(c => c.StartTime))
-                {
-                    _tracks.Add(new AudioTrackVm
-                    {
-                        Name = clip.DisplayName,
-                        Volume = clip.Volume,
-                        Pan = clip.Pan,
-                        IsMuted = clip.IsMuted,
-                        Clip = clip
-                    });
-                }
-                if (_tracks.Count > 0)
-                    TracksList.SelectedIndex = System.Math.Clamp(keep, 0, _tracks.Count - 1);
+                PopulateAudioMedia();
+                RefreshTracksFromTimeline();
             });
+        }
+
+        private void RefreshTracksFromTimeline()
+        {
+            var tl = _session.Timeline;
+            if (tl == null || !tl.AudioClips.Any())
+            {
+                // fall back to media-derived demo tracks
+                var project = _session.CurrentProject;
+                if (project == null || _tracks.Count > 0) return;
+                foreach (var audio in project.Media.Where(m => m.MediaType.ToLowerInvariant() == "audio"))
+                {
+                    if (_tracks.All(t => t.Name != audio.FileName))
+                        _tracks.Add(new AudioTrackVm { Name = audio.FileName });
+                }
+                return;
+            }
+
+            int keep = TracksList.SelectedIndex;
+            _tracks.Clear();
+            foreach (var clip in tl.AudioClips.OrderBy(c => c.TrackIndex).ThenBy(c => c.StartTime))
+            {
+                _tracks.Add(new AudioTrackVm
+                {
+                    Name = clip.DisplayName,
+                    Volume = clip.Volume,
+                    Pan = clip.Pan,
+                    IsMuted = clip.IsMuted,
+                    Clip = clip
+                });
+            }
+            if (_tracks.Count > 0)
+                TracksList.SelectedIndex = System.Math.Clamp(keep, 0, _tracks.Count - 1);
         }
 
         private void AddDemoTracks()
@@ -121,16 +154,83 @@ namespace MirrorStudio.App.Workspaces
         private void GenerateWaveform(AudioTrackVm track)
         {
             _bars.Clear();
-            int count = 110;
-            int seed = track.Name.GetHashCode();
-            var rnd = new System.Random(seed);
-            for (int i = 0; i < count; i++)
+            WaveHintText.Text = "Decoding waveform…";
+            _ = RenderWaveformAsync(track);
+        }
+
+        /// <summary>
+        /// Real waveform via ffmpeg decode + peak analysis (spec M9 §9/§11),
+        /// cached on disk so reselecting a track is instant.
+        /// </summary>
+        private async Task RenderWaveformAsync(AudioTrackVm track)
+        {
+            try
             {
-                double envelope = System.Math.Sin(System.Math.PI * i / count);
-                double h = (8 + rnd.NextDouble() * 52) * envelope + 4;
-                _bars.Add(new WaveBarVm { Height = System.Math.Round(h, 1) });
+                var sourcePath = track.Clip?.SourcePath;
+                if (string.IsNullOrEmpty(sourcePath))
+                {
+                    WaveHintText.Text = $"No media behind '{track.Name}' — proxy preview shown.";
+                    FillProxyBars(track.Name);
+                    return;
+                }
+
+                string absolute = _session.ResolvePath(sourcePath) ?? sourcePath;
+                if (!File.Exists(absolute))
+                {
+                    WaveHintText.Text = "Media offline — waveform unavailable.";
+                    return;
+                }
+
+                // ~20 points/sec of audio, pooled down to the bar count
+                var generator = CreateWaveformGenerator();
+                var peaks = await generator.GenerateAsync(absolute, MirrorStudio.Audio.Services.WaveformGenerator.AnalysisRateHz / 20);
+                if (peaks.Length == 0)
+                {
+                    WaveHintText.Text = "No audio stream found.";
+                    return;
+                }
+
+                const int maxBars = 140;
+                int pool = Math.Max(1, (int)Math.Ceiling(peaks.Length / (double)maxBars));
+
+                await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    _bars.Clear();
+                    for (int i = 0; i < peaks.Length; i += pool)
+                    {
+                        float blockMax = 0;
+                        for (int j = i; j < Math.Min(peaks.Length, i + pool); j++)
+                            blockMax = Math.Max(blockMax, peaks[j]);
+
+                        double h = 6 + blockMax * 58;
+                        _bars.Add(new WaveBarVm { Height = System.Math.Round(h, 1) });
+                    }
+                    WaveHintText.Text = $"Waveform: {peaks.Length} points ({_bars.Count} bars) — {track.Name}";
+                });
             }
-            WaveHintText.Text = $"Waveform: {track.Name} (proxy preview)";
+            catch (Exception ex)
+            {
+                await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                    WaveHintText.Text = $"Waveform failed: {ex.Message}");
+            }
+        }
+
+        private void FillProxyBars(string name)
+        {
+            _bars.Clear();
+            var rnd = new System.Random(name.GetHashCode());
+            for (int i = 0; i < 110; i++)
+            {
+                double envelope = System.Math.Sin(System.Math.PI * i / 110);
+                _bars.Add(new WaveBarVm { Height = System.Math.Round((8 + rnd.NextDouble() * 52) * envelope + 4, 1) });
+            }
+        }
+
+        private MirrorStudio.Audio.Services.WaveformGenerator CreateWaveformGenerator()
+        {
+            var decoder = new MirrorStudio.Audio.Services.AudioDecoder(
+                MirrorStudio.Video.Services.MediaEngineLocator.ResolveFfmpeg(_session.Settings.FFmpegPath));
+            return new MirrorStudio.Audio.Services.WaveformGenerator(decoder);
         }
 
         private void SyncSelectedTrack()
@@ -232,31 +332,201 @@ namespace MirrorStudio.App.Workspaces
             NrStatusText.Text = $"Noise reduction queued: {profile}, strength {NrStrengthSlider.Value:0}%. Render applies on export.";
         }
 
-        private void OnPlay(object? sender, RoutedEventArgs e)
+        private async void OnPlay(object? sender, RoutedEventArgs e)
         {
-            if (_playing) return;
-            _playing = true;
-            var timer = new Avalonia.Threading.DispatcherTimer { Interval = System.TimeSpan.FromMilliseconds(50) };
-            timer.Tick += (s, args) =>
-            {
-                AudioPlayhead.Value += 100.0 / 600.0;
-                AudioTimeText.Text = $"{AudioPlayhead.Value * 0.3:F1}s / 30.0s";
-                if (!_playing || AudioPlayhead.Value >= 100)
-                {
-                    timer.Stop();
-                    _playing = false;
-                    AudioPlayhead.Value = 0;
-                    AudioTimeText.Text = "0.0s / 30.0s";
-                }
-            };
-            timer.Start();
+            if (TracksList.SelectedItem is AudioTrackVm sel && sel.Clip != null)
+                _playDuration = System.Math.Max(0.5, sel.Clip.Duration);
+            else
+                _playDuration = System.Math.Max(0.5, _session.Timeline?.SequenceDuration ?? 30);
+
+            await _engine.SeekAsync(AudioPlayhead.Value / 100.0 * _playDuration);
+            await _engine.PlayAsync();
         }
 
         private void OnStop(object? sender, RoutedEventArgs e)
         {
-            _playing = false;
+            _engine.Stop();
             AudioPlayhead.Value = 0;
-            AudioTimeText.Text = "0.0s / 30.0s";
+            AudioTimeText.Text = $"0.0s / {_playDuration:F1}s";
+        }
+
+        // ---------- media library (drag & drop / double-click) ----------
+
+        private MediaEntry? _selectedAudioEntry;
+        private readonly System.Collections.Generic.Dictionary<MediaEntry, Border> _audioCards = new();
+
+        private static IBrush? Res(string key) =>
+            Avalonia.Application.Current is { } app && app.TryFindResource(key, out var v) ? v as IBrush : null;
+
+        private void PopulateAudioMedia()
+        {
+            if (AudioMediaHost == null) return;
+            AudioMediaHost.Children.Clear();
+            _audioCards.Clear();
+
+            var items = (_session.CurrentProject?.Media ?? new System.Collections.Generic.List<MediaEntry>())
+                .Where(m => m.MediaType.Equals("audio", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (items.Count == 0)
+            {
+                AudioMediaHost.Children.Add(new TextBlock
+                {
+                    Text = "No audio yet.\nUse Import Audio… or import in Video Studio.",
+                    Foreground = Res("BTxtLow"),
+                    FontSize = 10.5,
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Avalonia.Thickness(2, 6, 0, 0),
+                });
+                return;
+            }
+
+            foreach (var entry in items)
+                AudioMediaHost.Children.Add(BuildAudioCard(entry));
+        }
+
+        private Border BuildAudioCard(MediaEntry entry)
+        {
+            bool selected = ReferenceEquals(entry, _selectedAudioEntry);
+
+            var card = new Border
+            {
+                Height = 52,
+                Margin = new Avalonia.Thickness(2),
+                CornerRadius = new Avalonia.CornerRadius(4),
+                Background = Res("BInset"),
+                BorderThickness = new Avalonia.Thickness(selected ? 1.5 : 0.75),
+                BorderBrush = selected ? Res("BAccent") : Res("BBorder"),
+                Tag = entry,
+                Child = new Grid
+                {
+                    ColumnDefinitions = new Avalonia.Controls.ColumnDefinitions("Auto,*"),
+                },
+            };
+
+            var icon = new TextBlock
+            {
+                Text = "🎵",
+                FontSize = 18,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                Margin = new Avalonia.Thickness(8, 0, 4, 0),
+            };
+            Grid.SetColumn(icon, 0);
+            ((Grid)card.Child!).Children.Add(icon);
+
+            double dur = entry.DurationSec;
+            var label = new StackPanel
+            {
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                Margin = new Avalonia.Thickness(2, 1, 4, 1),
+            };
+            label.Children.Add(new TextBlock
+            {
+                Text = IOPath.GetFileNameWithoutExtension(entry.FileName),
+                Foreground = Res("BTxtHigh"),
+                FontSize = 11,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+            });
+            label.Children.Add(new TextBlock
+            {
+                Text = dur > 0.05 ? $"{dur:0.#}s" : "audio",
+                Foreground = Res("BTxtLow"),
+                FontSize = 9.5,
+            });
+            Grid.SetColumn(label, 1);
+            ((Grid)card.Child).Children.Add(label);
+
+            Services.MediaCardFactory.MakeInteractive(
+                card,
+                entry.RelativePath,
+                tap: () =>
+                {
+                    _selectedAudioEntry = entry;
+                    RestyleAudioSelection();
+                },
+                doubleTap: () =>
+                {
+                    _selectedAudioEntry = entry;
+                    RestyleAudioSelection();
+                    AppendAudioToTimeline(entry);
+                });
+
+            return card;
+        }
+
+        private void RestyleAudioSelection()
+        {
+            foreach (var (entry, card) in _audioCards)
+            {
+                bool selected = ReferenceEquals(entry, _selectedAudioEntry);
+                card.BorderBrush = selected ? Res("BAccent") : Res("BBorder");
+                card.BorderThickness = new Avalonia.Thickness(selected ? 1.5 : 0.75);
+            }
+        }
+
+        /// <summary>Places an audio entry on the emptiest audio track of the session timeline.</summary>
+        private void AppendAudioToTimeline(MediaEntry entry)
+        {
+            var tl = _session.Timeline;
+            if (tl == null || !_session.HasProject)
+            {
+                ActiveTrackText.Text = "Open a project first.";
+                return;
+            }
+
+            const int maxTracks = 4;
+            int bestTrack = 0;
+            double bestStart = double.MaxValue;
+            for (int i = 0; i < maxTracks; i++)
+            {
+                double end = tl.AudioClips
+                    .Where(c => c.TrackIndex == i)
+                    .Select(c => c.StartTime + c.Duration)
+                    .DefaultIfEmpty(0)
+                    .Max();
+                if (end < bestStart)
+                {
+                    bestStart = end;
+                    bestTrack = i;
+                }
+            }
+
+            double duration = entry.DurationSec > 0.05 ? entry.DurationSec : 10.0;
+            var clip = new ClipModel
+            {
+                Name = entry.FileName,
+                SourcePath = entry.RelativePath,
+                MediaType = "Audio",
+                TrackKind = TrackKind.Audio,
+                TrackIndex = bestTrack,
+                StartTime = bestStart,
+                Duration = duration,
+                InPoint = 0,
+                OutPoint = duration,
+            };
+
+            tl.Clips.Add(clip);
+            _session.SelectClip(clip);
+            _selectedAudioEntry = entry;
+            RefreshTracksFromTimeline();
+            TracksList.SelectedIndex = _tracks.Count - 1;   // newest first for mixing
+        }
+
+        private MediaEntry? EntryFromPayload(DragEventArgs e)
+        {
+            var rel = Services.MediaCardFactory.PayloadFrom(e);
+            if (rel == null) return null;
+            return (_session.CurrentProject?.Media ?? new System.Collections.Generic.List<MediaEntry>())
+                .FirstOrDefault(m => m.RelativePath.Equals(rel, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private void OnMediaDragOver(object? sender, DragEventArgs e) =>
+            e.DragEffects = EntryFromPayload(e) != null ? DragDropEffects.Copy : DragDropEffects.None;
+
+        private void OnMediaDrop(object? sender, DragEventArgs e)
+        {
+            var entry = EntryFromPayload(e);
+            if (entry != null) AppendAudioToTimeline(entry);
         }
     }
 }

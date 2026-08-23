@@ -55,7 +55,13 @@ namespace MirrorStudio.App
             _autosaveTimer.Tick += async (_, _) =>
             {
                 _autosaveTimer.Stop();
-                if (_session.CurrentProject is { } p && !_suppressAutosave)
+                if (_session.CurrentProject is not { } p || _suppressAutosave) return;
+
+                // bundle projects → MyFilm.msp.recovery (spec M8 §7); folder projects → JSON autosave
+                if (_session.MspPath != null)
+                    await _recovery.WriteMspRecoveryAsync(
+                        MirrorStudio.Core.Projects.ProjectMapper.ToProject(p), _session.MspPath);
+                else
                     await _recovery.WriteAutosaveAsync(p);
             };
             _session.ProjectChanged += KickAutosave;
@@ -104,6 +110,35 @@ namespace MirrorStudio.App
                                 System.IO.Path.Combine(ProjectService.ProjectsRoot, project.Name));
                             Show(WorkspaceKind.Video);
                             StatusText.Text = $"Recovered: {project.Name}";
+                        }
+                    }
+                }
+                finally
+                {
+                    _recovery.DiscardRecovery(path);
+                    _suppressAutosave = false;
+                }
+            }
+
+            // ---------- .msp.recovery candidates (spec M8 §7) ----------
+            foreach (var (name, path) in _recovery.FindMspRecoveries())
+            {
+                var recover = await MessageBox.ShowConfirm(this,
+                    "Project Recovery",
+                    $"An unsaved recovery version of \"{name}.msp\" was found.\n\nRecover it?");
+                try
+                {
+                    if (recover)
+                    {
+                        var canonical = await _recovery.LoadMspRecoveryAsync(path);
+                        if (canonical != null)
+                        {
+                            var model = MirrorStudio.Core.Projects.ProjectMapper.ToProjectModel(canonical);
+                            var mspTarget = System.IO.Path.Combine(ProjectService.ProjectsRoot, name + ".msp");
+                            _suppressAutosave = true;
+                            _session.SetBundle(model, mspTarget);
+                            Show(WorkspaceKind.Video);
+                            StatusText.Text = $"Recovered: {name}";
                         }
                     }
                 }

@@ -63,4 +63,44 @@ public class ProjectRecoveryService
     {
         try { File.Delete(autosavePath); } catch { /* best effort */ }
     }
+
+    // ---------- .msp.recovery (spec M8 §7) ----------
+
+    private readonly ProjectPackageService _packages = new();
+
+    /// <summary>
+    /// Writes a temporary recovery version of a bundle project:
+    /// MyFilm.msp.recovery (a .msp-format ZIP next to the target file).
+    /// </summary>
+    public async Task<string?> WriteMspRecoveryAsync(Core.Projects.Project project, string mspPath)
+    {
+        try
+        {
+            var recoveryPath = mspPath + ".recovery";
+            await _packages.SaveAsync(project, recoveryPath);
+            return recoveryPath;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>All *.msp.recovery files found next to known bundles.</summary>
+    public IReadOnlyList<(string ProjectName, string Path)> FindMspRecoveries()
+    {
+        var list = new List<(string, string)>();
+        try
+        {
+            if (!Directory.Exists(ProjectService.ProjectsRoot)) return list;
+            foreach (var file in Directory.GetFiles(ProjectService.ProjectsRoot, "*.msp.recovery", SearchOption.AllDirectories))
+                list.Add((Path.GetFileName(file).Replace(".msp.recovery", ""), file));
+        }
+        catch { /* best effort */ }
+        return list;
+    }
+
+    /// <summary>Loads a .msp.recovery container back into a canonical project.</summary>
+    public Task<Core.Projects.Project?> LoadMspRecoveryAsync(string recoveryPath) =>
+        _packages.LoadAsync(recoveryPath);
 }

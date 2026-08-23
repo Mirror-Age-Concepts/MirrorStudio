@@ -21,6 +21,8 @@ namespace MirrorStudio.Core.Models
             TransitionKind.DipToBlack => "DipToBlack",
             TransitionKind.DipToWhite => "DipToWhite",
             TransitionKind.Wipe => "Wipe",
+            TransitionKind.Slide => "Slide",
+            TransitionKind.Zoom => "Zoom",
             _ => "Cut"
         };
 
@@ -31,6 +33,8 @@ namespace MirrorStudio.Core.Models
             "DipToBlack" => TransitionKind.DipToBlack,
             "DipToWhite" => TransitionKind.DipToWhite,
             "Wipe" => TransitionKind.Wipe,
+            "Slide" => TransitionKind.Slide,
+            "Zoom" => TransitionKind.Zoom,
             _ => TransitionKind.Cut
         };
     }

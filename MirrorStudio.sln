@@ -33,6 +33,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MirrorStudio.AI", "MirrorSt
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MirrorStudio.Tests", "MirrorStudio.Tests\MirrorStudio.Tests.csproj", "{0F2D80A9-4528-41D7-BA44-2916CD50CAFF}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MirrorStudio.Export", "MirrorStudio.Export\MirrorStudio.Export.csproj", "{925F1BDC-0EC6-48CF-91A4-4EB0E25EE811}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -223,6 +225,18 @@ Global
 		{0F2D80A9-4528-41D7-BA44-2916CD50CAFF}.Release|x64.Build.0 = Release|Any CPU
 		{0F2D80A9-4528-41D7-BA44-2916CD50CAFF}.Release|x86.ActiveCfg = Release|Any CPU
 		{0F2D80A9-4528-41D7-BA44-2916CD50CAFF}.Release|x86.Build.0 = Release|Any CPU
+		{925F1BDC-0EC6-48CF-91A4-4EB0E25EE811}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{925F1BDC-0EC6-48CF-91A4-4EB0E25EE811}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{925F1BDC-0EC6-48CF-91A4-4EB0E25EE811}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{925F1BDC-0EC6-48CF-91A4-4EB0E25EE811}.Debug|x64.Build.0 = Debug|Any CPU
+		{925F1BDC-0EC6-48CF-91A4-4EB0E25EE811}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{925F1BDC-0EC6-48CF-91A4-4EB0E25EE811}.Debug|x86.Build.0 = Debug|Any CPU
+		{925F1BDC-0EC6-48CF-91A4-4EB0E25EE811}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{925F1BDC-0EC6-48CF-91A4-4EB0E25EE811}.Release|Any CPU.Build.0 = Release|Any CPU
+		{925F1BDC-0EC6-48CF-91A4-4EB0E25EE811}.Release|x64.ActiveCfg = Release|Any CPU
+		{925F1BDC-0EC6-48CF-91A4-4EB0E25EE811}.Release|x64.Build.0 = Release|Any CPU
+		{925F1BDC-0EC6-48CF-91A4-4EB0E25EE811}.Release|x86.ActiveCfg = Release|Any CPU
+		{925F1BDC-0EC6-48CF-91A4-4EB0E25EE811}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

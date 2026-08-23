@@ -14,5 +14,8 @@
     <ProjectReference Include="..\MirrorStudio.Core\MirrorStudio.Core.csproj" />
     <ProjectReference Include="..\MirrorStudio.Project\MirrorStudio.Project.csproj" />
     <ProjectReference Include="..\MirrorStudio.Timeline\MirrorStudio.Timeline.csproj" />
+    <ProjectReference Include="..\MirrorStudio.Export\MirrorStudio.Export.csproj" />
+    <ProjectReference Include="..\MirrorStudio.Media\MirrorStudio.Media.csproj" />
+    <ProjectReference Include="..\MirrorStudio.Audio\MirrorStudio.Audio.csproj" />
   </ItemGroup>
 </Project>

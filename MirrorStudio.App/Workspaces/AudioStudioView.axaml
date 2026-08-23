@@ -4,11 +4,19 @@
     <Grid ColumnDefinitions="230,*,300">
         <Border Grid.Column="0" Background="{DynamicResource BPanel}">
             <DockPanel Margin="8">
-                <TextBlock DockPanel.Dock="Top" Text="AUDIO TRACKS" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,4"/>
                 <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
                     <Button Content="+ Track" Width="70" Margin="2" Click="OnAddTrack"/>
                     <Button Content="Remove" Width="80" Margin="2" Click="OnRemoveTrack"/>
                 </StackPanel>
+
+                <TextBlock DockPanel.Dock="Top" Text="MEDIA (drag ↓ or double-click)"
+                           Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,4"/>
+                <ScrollViewer DockPanel.Dock="Top" Height="170" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Name="AudioMediaHost"/>
+                </ScrollViewer>
+
+                <TextBlock DockPanel.Dock="Top" Text="AUDIO TRACKS"
+                           Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,10,0,4"/>
                 <ListBox Name="TracksList"/>
             </DockPanel>
         </Border>
@@ -29,7 +37,7 @@
                         <TextBlock Name="AudioTimeText" Text="0.0s / 30.0s" Foreground="{DynamicResource BTxtMid}" VerticalAlignment="Center" Margin="12,0,0,0"/>
                     </StackPanel>
                 </StackPanel>
-                <Border Background="{DynamicResource BTrackHead}" Margin="8" CornerRadius="3">
+                <Border Name="WaveBorder" Background="{DynamicResource BTrackHead}" Margin="8" CornerRadius="3">
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="WAVEFORM" Foreground="{DynamicResource BTxtLow}" FontSize="11" HorizontalAlignment="Left" Margin="10,8,0,0"/>
                         <ItemsControl Name="WaveformBars" Margin="10,4,10,10">
