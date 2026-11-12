@@ -35,6 +35,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MirrorStudio.Tests", "Mirro
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MirrorStudio.Export", "MirrorStudio.Export\MirrorStudio.Export.csproj", "{925F1BDC-0EC6-48CF-91A4-4EB0E25EE811}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MirrorStudio.Graphics", "MirrorStudio.Graphics\MirrorStudio.Graphics.csproj", "{FBAF48E7-EB5B-4F56-BD9C-65A9DFD3BF66}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -237,6 +239,18 @@ Global
 		{925F1BDC-0EC6-48CF-91A4-4EB0E25EE811}.Release|x64.Build.0 = Release|Any CPU
 		{925F1BDC-0EC6-48CF-91A4-4EB0E25EE811}.Release|x86.ActiveCfg = Release|Any CPU
 		{925F1BDC-0EC6-48CF-91A4-4EB0E25EE811}.Release|x86.Build.0 = Release|Any CPU
+		{FBAF48E7-EB5B-4F56-BD9C-65A9DFD3BF66}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FBAF48E7-EB5B-4F56-BD9C-65A9DFD3BF66}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FBAF48E7-EB5B-4F56-BD9C-65A9DFD3BF66}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{FBAF48E7-EB5B-4F56-BD9C-65A9DFD3BF66}.Debug|x64.Build.0 = Debug|Any CPU
+		{FBAF48E7-EB5B-4F56-BD9C-65A9DFD3BF66}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{FBAF48E7-EB5B-4F56-BD9C-65A9DFD3BF66}.Debug|x86.Build.0 = Debug|Any CPU
+		{FBAF48E7-EB5B-4F56-BD9C-65A9DFD3BF66}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FBAF48E7-EB5B-4F56-BD9C-65A9DFD3BF66}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FBAF48E7-EB5B-4F56-BD9C-65A9DFD3BF66}.Release|x64.ActiveCfg = Release|Any CPU
+		{FBAF48E7-EB5B-4F56-BD9C-65A9DFD3BF66}.Release|x64.Build.0 = Release|Any CPU
+		{FBAF48E7-EB5B-4F56-BD9C-65A9DFD3BF66}.Release|x86.ActiveCfg = Release|Any CPU
+		{FBAF48E7-EB5B-4F56-BD9C-65A9DFD3BF66}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

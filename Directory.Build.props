@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup>
+    <!-- Disable NuGet audit (NU1900-NU1904) warnings. The audit needs network
+         access to the NuGet vulnerability feed, which isn't available in this
+         offline environment and only produces noise. Re-enable by deleting this
+         property or setting it to true. -->
+    <NuGetAudit>false</NuGetAudit>
+  </PropertyGroup>
+</Project>

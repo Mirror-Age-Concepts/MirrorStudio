@@ -1,4 +1,6 @@
 using MirrorStudio.Core.Models;
+using MirrorStudio.Graphics.Models;
+using MirrorStudio.Graphics.Subtitles;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -80,7 +82,7 @@ namespace MirrorStudio.Video
                 if (fx.Length > 0) f.Add(fx);
 
                 double tw = Math.Min(0.6, c.Duration / 2);
-                switch (c.TransitionIn.Kind)
+                switch (c.TransitionIn?.Kind)   // null = Cut (legacy data)
                 {
                     case TransitionKind.Fade:
                     case TransitionKind.CrossDissolve:
@@ -104,16 +106,18 @@ namespace MirrorStudio.Video
                 chains.Add($"[{i}:v]" + string.Join(",", f) + $"[v{i}]");
             }
 
-            if (!audioOnly && videoClips.Count > 0)
+            if (!audioOnly && videoClips.Count > 0 && project.Graphics.Count == 0
+                && !project.SubtitleTracks.Any(t => t.Items.Count > 0))
             {
+                // fast path: no overlays — concat straight to output
                 var labels = string.Join("", videoClips.Select((_, i) => $"[v{i}]"));
                 chains.Add($"{labels}concat=n={videoClips.Count}:v=1:a=0[vcat]");
                 chains.Add("[vcat]format=yuv420p[vout]");
             }
-
             // ---------- audio ----------
             bool anySolo = audioClips.Any(a => a.IsSolo);
             int ai = audioOnly ? 0 : videoClips.Count;
+            int appendedAudio = 0;
             var aLabels = new List<string>();
 
             foreach (var c in audioClips)
@@ -126,8 +130,8 @@ namespace MirrorStudio.Video
                 }
 
                 sb.Append($"-ss {N(Math.Max(0, c.InPoint))} -t {N(c.Duration)} -i \"{src}\" ");
+                appendedAudio++;
                 ai++;
-
                 var f = new List<string>();
                 double vol = c.Volume / 100.0 * Math.Pow(10, c.GainDb / 20.0);
                 if (c.IsMuted || (anySolo && !c.IsSolo)) vol = 0;
@@ -155,6 +159,19 @@ namespace MirrorStudio.Video
                 chains.Add(string.Join("", aLabels) + $"amix=inputs={aLabels.Count}:normalize=0[aout]");
 
             bool hasAudioMix = includeAudio && aLabels.Count > 0;
+
+            // ---------- graphics overlays + subtitles (Milestone 11) ----------
+            // runs after audio so image-layer input indices land after all -i flags
+            bool hasOverlays = project.Graphics.Count > 0
+                || project.SubtitleTracks.Any(t => t.Items.Count > 0);
+            if (!audioOnly && videoClips.Count > 0 && hasOverlays)
+            {
+                var labels = string.Join("", videoClips.Select((_, i) => $"[v{i}]"));
+                chains.Add($"{labels}concat=n={videoClips.Count}:v=1:a=0[vcat]");
+                string src = AppendGraphicsAndSubtitles(project, chains, ref sb,
+                    "vcat", w, h, videoClips.Count + appendedAudio, resolve);
+                chains.Add($"[{src}]format=yuv420p[vout]");
+            }
 
             // ---------- encoder ----------
             string enc;
@@ -191,6 +208,157 @@ namespace MirrorStudio.Video
             "mov_prores" => "",
             _ => " -c:a aac -b:a 192k"
         };
+
+        // ---------- Milestone 11: graphics overlays + burned subtitles ----------
+
+        /// <summary>
+        /// Appends drawtext/drawbox/overlay chains for graphics layers and the
+        /// subtitle burn-in after the concat result; returns the label that the
+        /// next filter stage must read. Image layers become extra inputs whose
+        /// indices start at <paramref name="nextInputIndex"/> (after video+audio).
+        /// </summary>
+        private static string AppendGraphicsAndSubtitles(
+            ProjectModel project, List<string> chains, ref StringBuilder sb,
+            string sourceLabel, int w, int h, int nextInputIndex,
+            Func<string, string?> resolve)
+        {
+            string cur = sourceLabel;
+            int extra = 0;
+
+            var layers = project.Graphics
+                .Where(g => g.Visible && g.Duration > 0.01)
+                .OrderBy(g => g.Start);
+
+            foreach (var g in layers)
+            {
+                double st = Math.Max(0, g.Start);
+                double en = g.Start + g.Duration;
+                if (st >= en) continue;
+                string enable = $"enable='between(t,{N(st)},{N(en)})'";
+                double op = Math.Clamp(g.Opacity, 0, 1);
+                int x = (int)Math.Round(g.PositionX);
+                int y = (int)Math.Round(g.PositionY);
+
+                switch (g)
+                {
+                    case TextLayer t:
+                    {
+                        var dt = DrawTextFilter(t, enable);
+                        if (dt != null) cur = Chain(chains, cur, dt);
+                        break;
+                    }
+                    case ShapeLayer s when s.ShapeType is "Rectangle" or "RoundedRectangle":
+                    {
+                        int bw = Math.Max(1, (int)(s.Width * s.ScaleX));
+                        int bh = Math.Max(1, (int)(s.Height * s.ScaleY));
+                        string fill = HexToDrawColor(s.FillColor, op);
+                        string box = s.StrokeWidth > 0.5
+                            ? $"drawbox=x={x}-w/2:y={y}-h/2:w={bw}:h={bh}:color={fill}:t={Math.Max(1, (int)s.StrokeWidth)}:{enable}"
+                            : $"drawbox=x={x}-w/2:y={y}-h/2:w={bw}:h={bh}:color={fill}:t=fill:{enable}";
+                        cur = Chain(chains, cur, box);
+                        break;
+                    }
+                    case ImageLayer img:
+                    {
+                        string? path = resolve?.Invoke(img.ImagePath) ?? img.ImagePath;
+                        if (path == null || !File.Exists(path)) break;
+
+                        int idx = extra++;
+                        sb.Append($"-i \"{path}\" ");
+                        int inputIndex = nextInputIndex + idx;
+                        double sx = Math.Max(0.01, g.ScaleX), sy = Math.Max(0.01, g.ScaleY);
+                        chains.Add($"[{inputIndex}:v]scale=w=iw*{N(sx)}:h=ih*{N(sy)},format=rgba,colorchannelmixer=aa={N(op)}[ovi{idx}]");
+
+                        string dst = $"gxo{idx}";
+                        chains.Add($"[{cur}][ovi{idx}]overlay=x={x}-w/2:y={y}-h/2:{enable}[{dst}]");
+                        cur = dst;
+                        break;
+                    }
+                }
+            }
+
+            // subtitles burn-in (ASS keeps parsed styling; SRT otherwise)
+            var track = project.SubtitleTracks.FirstOrDefault(t => t.Items.Count > 0);
+            if (track != null)
+            {
+                try
+                {
+                    bool styled = track.Style != null;
+                    string ext = styled ? ".ass" : ".srt";
+                    string tmp = Path.Combine(Path.GetTempPath(), $"mirror_subs_{Guid.NewGuid():N}{ext}");
+                    File.WriteAllText(tmp,
+                        styled ? AssParser.Write(track) : SrtParser.Write(track));
+                    cur = Chain(chains, cur, $"subtitles='{EscapePath(tmp)}'");
+                }
+                catch
+                {
+                    // unreadable temp dir must not kill the export
+                }
+            }
+
+            return cur;
+        }
+
+        private static string Chain(List<string> chains, string src, string filter)
+        {
+            string dst = $"gfx{chains.Count}";
+            chains.Add($"[{src}]{filter}[{dst}]");
+            return dst;
+        }
+
+        private static string HexToDrawColor(string hex, double opacity)
+        {
+            var c = hex.TrimStart('#');
+            if (c.Length == 8) c = c[2..];
+            if (c.Length != 6 || !c.All(Uri.IsHexDigit)) c = "FFFFFF";
+            return $"0x{c}@{N(opacity)}";
+        }
+
+        private static string? ResolveFontFile()
+        {
+            string fonts = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+            foreach (var f in new[] { "arial.ttf", "segoeui.ttf", "calibri.ttf", "tahoma.ttf" })
+            {
+                string p = Path.Combine(fonts, "Fonts", f);
+                if (File.Exists(p)) return p;
+            }
+            return null;
+        }
+
+        private static string? DrawTextFilter(MirrorStudio.Graphics.Models.TextLayer t, string enable)
+        {
+            try
+            {
+                string? font = ResolveFontFile();
+                if (font == null) return null;
+
+                string safeText = t.Text.Replace("\r", " ").Replace("\n", " ")
+                    .Replace("'", "").Replace("%", "").Replace(":", "").Replace(",", "");
+                var tmpText = Path.Combine(Path.GetTempPath(), $"mirror_gfx_{Guid.NewGuid():N}.txt");
+                File.WriteAllText(tmpText, safeText);
+
+                var parts = new List<string>
+                {
+                    $"drawtext=textfile='{EscapePath(tmpText)}'",
+                    $"fontfile='{EscapePath(font)}'",
+                    $"fontsize={N(t.Style.FontSize)}",
+                    $"fontcolor={HexToDrawColor(t.Style.FillColor, Math.Clamp(t.Opacity, 0, 1))}",
+                    $"x={N(t.PositionX)}-text_w/2",
+                    $"y={N(t.PositionY)}-text_h/2",
+                    enable
+                };
+                if (t.Style.ShadowOpacity > 0.01)
+                    parts.Add($"shadowcolor=black@{N(Math.Min(1, t.Style.ShadowOpacity))}:shadowx={Math.Max(1,(int)t.Style.ShadowOffsetX)}:shadowy={Math.Max(1,(int)t.Style.ShadowOffsetY)}");
+                if (t.Style.StrokeWidth > 0.5)
+                    parts.Add($"bordercolor={HexToDrawColor(t.Style.StrokeColor, 1)}:borderw={Math.Max(1,(int)t.Style.StrokeWidth)}");
+
+                return string.Join(":", parts);
+            }
+            catch
+            {
+                return null;
+            }
+        }
 
         private static string? DrawTextFilter(TitleModel t, int w, int h)
         {

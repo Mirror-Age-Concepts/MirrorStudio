@@ -4,6 +4,7 @@
     <IsPackable>false</IsPackable>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
@@ -12,6 +13,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\MirrorStudio.Core\MirrorStudio.Core.csproj" />
+    <ProjectReference Include="..\MirrorStudio.Graphics\MirrorStudio.Graphics.csproj" />
+    <ProjectReference Include="..\MirrorStudio.Image\MirrorStudio.Image.csproj" />
     <ProjectReference Include="..\MirrorStudio.Project\MirrorStudio.Project.csproj" />
     <ProjectReference Include="..\MirrorStudio.Timeline\MirrorStudio.Timeline.csproj" />
     <ProjectReference Include="..\MirrorStudio.Export\MirrorStudio.Export.csproj" />

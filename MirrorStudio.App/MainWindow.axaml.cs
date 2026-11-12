@@ -74,7 +74,17 @@ namespace MirrorStudio.App
             AddKeyBinding(Avalonia.Input.Key.D6, Avalonia.Input.KeyModifiers.Alt, () => Show(WorkspaceKind.Export));
 
             Show(WorkspaceKind.Home);
-            _ = OfferProjectRecoveryAsync();
+
+            // recovery prompt needs a visible owner window - defer until shown
+            // (ShowDialog throws "Cannot show window with non-visible owner" otherwise)
+            bool recoveryRan = false;
+            Opened += async (_, _) =>
+            {
+                if (recoveryRan) return;
+                recoveryRan = true;
+                try { await OfferProjectRecoveryAsync(); }
+                catch (System.Exception ex) { Services.DndLog.W($"RECOVERY FAILED: {ex}"); }
+            };
         }
 
         // ---------- auto-save & recovery (Milestone 7 §16) ----------

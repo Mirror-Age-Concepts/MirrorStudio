@@ -61,6 +61,8 @@ namespace MirrorStudio.App.Workspaces
             _session.ProjectChanged += OnProjectChanged;
 
             // media library drop targets (drag an audio file anywhere on tracks/waveform)
+            DragDrop.SetAllowDrop(TracksList, true);
+            DragDrop.SetAllowDrop(WaveBorder, true);
             TracksList.AddHandler(DragDrop.DragOverEvent, OnMediaDragOver);
             TracksList.AddHandler(DragDrop.DropEvent, OnMediaDrop);
             WaveBorder.AddHandler(DragDrop.DragOverEvent, OnMediaDragOver);

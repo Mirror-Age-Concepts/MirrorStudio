@@ -8,6 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\MirrorStudio.Core\MirrorStudio.Core.csproj" />
+    <ProjectReference Include="..\MirrorStudio.Graphics\MirrorStudio.Graphics.csproj" />
     <ProjectReference Include="..\MirrorStudio.Rendering\MirrorStudio.Rendering.csproj" />
   </ItemGroup>
   <ItemGroup>

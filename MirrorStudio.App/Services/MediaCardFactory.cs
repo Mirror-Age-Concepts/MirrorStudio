@@ -29,12 +29,24 @@ public static class MediaCardFactory
         Action doubleTap)
     {
         Point? pressPoint = null;
+        bool dragStarted = false;
+        bool loggedFirstMove = false;
 
         card.PointerPressed += (_, e) =>
         {
             if (!e.GetCurrentPoint(card).Properties.IsLeftButtonPressed) return;
             pressPoint = e.GetPosition(card);
-            tap();
+            dragStarted = false;
+            loggedFirstMove = false;
+            // capture so we keep receiving moves even if the cursor briefly
+            // leaves the card; released below before the OLE drag loop takes over
+            e.Pointer.Capture(card);
+            DndLog.W($"SRC press on '{dropPayload}' at {pressPoint}");
+            // NOTE: no side-effects here. Selection runs on PointerReleased —
+            // anything heavier than a border restyle (e.g. SelectMedia →
+            // timeline rebuild + preview render) stalls the input pump, and
+            // Windows coalesces WM_MOUSEMOVE while it is blocked, so the
+            // whole drag gesture would be lost before the threshold check.
         };
 
         card.PointerMoved += async (_, e) =>
@@ -43,15 +55,28 @@ public static class MediaCardFactory
                 return;
 
             var d = e.GetPosition(card) - pressPoint.Value;
+            if (!loggedFirstMove)
+            {
+                loggedFirstMove = true;
+                DndLog.W($"SRC first move d=({d.X:0},{d.Y:0}) pressed={e.GetCurrentPoint(card).Properties.IsLeftButtonPressed}");
+            }
             if (Math.Sqrt(d.X * d.X + d.Y * d.Y) < 6) return;   // drag threshold
 
             pressPoint = null;
+            dragStarted = true;
+            e.Pointer.Capture(null);
             var data = new DataObject();
             data.Set(MediaDropFormat, dropPayload);
             IsDragging = true;
+            DndLog.W($"SRC DoDragDrop starting payload='{dropPayload}'");
             try
             {
-                await DragDrop.DoDragDrop(e, data, DragDropEffects.Copy);
+                var result = await DragDrop.DoDragDrop(e, data, DragDropEffects.Copy);
+                DndLog.W($"SRC DoDragDrop finished effect={result}");
+            }
+            catch (Exception ex)
+            {
+                DndLog.W($"SRC DoDragDrop EXCEPTION {ex.GetType().Name}: {ex.Message}");
             }
             finally
             {
@@ -59,7 +84,21 @@ public static class MediaCardFactory
             }
         };
 
-        card.PointerReleased += (_, _) => pressPoint = null;
+        card.PointerReleased += (_, _) =>
+        {
+            // true click: gesture stayed within threshold and no drag began
+            if (pressPoint != null && !dragStarted)
+            {
+                DndLog.W("SRC click -> tap");
+                tap();
+            }
+            pressPoint = null;
+        };
+        card.PointerCaptureLost += (_, _) =>
+        {
+            if (pressPoint != null) DndLog.W("SRC capture lost before drag started");
+            pressPoint = null;
+        };
         card.DoubleTapped += (_, _) => { pressPoint = null; doubleTap(); };
     }
 

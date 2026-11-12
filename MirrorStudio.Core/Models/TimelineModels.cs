@@ -83,7 +83,9 @@ namespace MirrorStudio.Core.Models
         public bool IsMuted { get; set; }
         public bool IsSolo { get; set; }
 
-        public ClipTransition? TransitionIn { get; set; }
+        /// <summary>Never null in practice — fresh clips get a Cut transition;
+        /// consumers still null-guard for legacy persisted data.</summary>
+        public ClipTransition? TransitionIn { get; set; } = new ClipTransition();
         public TitleModel? Title { get; set; }
         public List<EffectModel> Effects { get; set; } = new();
 

@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="MirrorStudio.App.Workspaces.VideoStudioView">
     <DockPanel>
@@ -12,6 +12,8 @@
                         <Button Content="Delete" Height="24" Padding="8,1" Margin="6,0,0,0" Click="OnDeleteClip"/>
                         <CheckBox Name="RippleChk" Content="Ripple delete" Margin="10,0,0,0" VerticalAlignment="Center"/>
                         <Button Content="+ Title" Height="24" Padding="8,1" Margin="10,0,0,0" Click="OnAddTitle"/>
+                        <CheckBox Name="SafeAreasChk" Content="Safe areas" Margin="10,0,0,0" VerticalAlignment="Center"
+                                  Checked="OnSafeAreasToggled" Unchecked="OnSafeAreasToggled"/>
                     </StackPanel>
                     <StackPanel Grid.Column="2" Orientation="Horizontal">
                         <TextBlock Text="Zoom" Foreground="{DynamicResource BTxtMid}" VerticalAlignment="Center" Margin="0,0,6,0"/>
@@ -58,13 +60,13 @@
                     <Border DockPanel.Dock="Bottom" Background="{DynamicResource BPanel}" Padding="8,6" BorderBrush="{DynamicResource BBorder}" BorderThickness="0,1,0,0">
                         <Grid ColumnDefinitions="*,Auto,*" RowDefinitions="Auto,Auto">
                             <StackPanel Grid.ColumnSpan="3" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,6">
-                                <Button Name="BtnStart" Content="⏮" Width="38" Height="28" Click="OnGotoStart"/>
-                                <Button Name="BtnFrameBack" Content="◀|" Width="38" Height="28" Margin="4,0,0,0" Click="OnPrevFrame"/>
-                                <Button Name="PlayBtn" Content="▶ Play" Width="74" Height="28" Margin="4,0,0,0" Click="OnPlayPause"/>
-                                <Button Name="BtnFrameFwd" Content="|▶" Width="38" Height="28" Margin="4,0,0,0" Click="OnNextFrame"/>
-                                <Button Name="BtnEnd" Content="⏭" Width="38" Height="28" Margin="4,0,0,0" Click="OnGotoEnd"/>
-                                <Button Name="RecordBtn" Content="●" Width="38" Height="28" Margin="12,0,0,0" Click="OnRecordMark"/>
-                                <Button Name="FullscreenBtn" Content="⛶" Width="38" Height="28" Margin="12,0,0,0" Click="OnToggleFullscreen"/>
+                                <Button Name="BtnStart" Content="â®" Width="38" Height="28" Click="OnGotoStart"/>
+                                <Button Name="BtnFrameBack" Content="â—€|" Width="38" Height="28" Margin="4,0,0,0" Click="OnPrevFrame"/>
+                                <Button Name="PlayBtn" Content="â–¶ Play" Width="74" Height="28" Margin="4,0,0,0" Click="OnPlayPause"/>
+                                <Button Name="BtnFrameFwd" Content="|â–¶" Width="38" Height="28" Margin="4,0,0,0" Click="OnNextFrame"/>
+                                <Button Name="BtnEnd" Content="â­" Width="38" Height="28" Margin="4,0,0,0" Click="OnGotoEnd"/>
+                                <Button Name="RecordBtn" Content="â—" Width="38" Height="28" Margin="12,0,0,0" Click="OnRecordMark"/>
+                                <Button Name="FullscreenBtn" Content="â›¶" Width="38" Height="28" Margin="12,0,0,0" Click="OnToggleFullscreen"/>
                             </StackPanel>
                             <Slider Name="SeekSlider" Grid.Row="1" Grid.ColumnSpan="3" Minimum="0" Maximum="100" ValueChanged="OnSeekChanged"/>
                             <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
@@ -91,9 +93,14 @@
                                     <Image Name="PreviewImage" Stretch="UniformToFill"/>
                                     <TextBlock Name="VideoPlaceText" Text="" Foreground="{DynamicResource BTxtMid}" FontSize="14"
                                                HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"/>
+                                    <Canvas Name="GraphicsOverlay" IsHitTestVisible="False"/>
                                     <TextBlock Name="TitleOverlayText" Text="" Foreground="White" FontSize="42" FontWeight="Bold"
                                                HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" IsVisible="False"/>
                                     <Rectangle Name="DipOverlayRect" Fill="Black" Opacity="0" IsHitTestVisible="False"/>
+                                    <Rectangle Name="ActionSafeRect" Stroke="#66FFFFFF" StrokeThickness="1" StrokeDashArray="4,3"
+                                               Margin="32" IsHitTestVisible="False" IsVisible="False"/>
+                                    <Rectangle Name="TitleSafeRect" Stroke="#88FFFF00" StrokeThickness="1" StrokeDashArray="4,3"
+                                               Margin="64" IsHitTestVisible="False" IsVisible="False"/>
                                 </Panel>
                             </Border>
                         </Panel>
@@ -117,7 +124,7 @@
                                 <NumericUpDown Name="ScaleXB" Grid.Row="2" Grid.Column="1" Margin="8,2,0,2" Minimum="1" Maximum="1000" Value="100" ValueChanged="OnInspNum"/>
                                 <TextBlock Grid.Row="3" Text="Scale Y %" VerticalAlignment="Center"/>
                                 <NumericUpDown Name="ScaleYB" Grid.Row="3" Grid.Column="1" Margin="8,2,0,2" Minimum="1" Maximum="1000" Value="100" ValueChanged="OnInspNum"/>
-                                <TextBlock Grid.Row="4" Text="Rotation °" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="4" Text="Rotation Â°" VerticalAlignment="Center"/>
                                 <NumericUpDown Name="RotB" Grid.Row="4" Grid.Column="1" Margin="8,2,0,2" Minimum="-360" Maximum="360" ValueChanged="OnInspNum"/>
                                 <TextBlock Grid.Row="5" Text="Opacity %" VerticalAlignment="Center"/>
                                 <Slider Name="OpacitySlider" Grid.Row="5" Grid.Column="1" Minimum="0" Maximum="100" Value="100" ValueChanged="OnInspRange" VerticalAlignment="Center" Margin="8,2,0,2"/>
@@ -231,9 +238,112 @@
                         </Grid>
                     </StackPanel>
                 </TabItem>
+                <TabItem Header="Titles &amp; Graphics">
+                    <DockPanel Margin="8">
+                        <StackPanel DockPanel.Dock="Bottom" Margin="0,6,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="+ Title" Padding="8,3" Click="OnAddGfxTitle"/>
+                                <Button Content="+ Lower Third" Padding="8,3" Margin="6,0,0,0" Click="OnAddLowerThird"/>
+                                <Button Content="Delete" Padding="8,3" Margin="6,0,0,0" Click="OnDeleteGraphic"/>
+                            </StackPanel>
+                            <Grid ColumnDefinitions="Auto,Auto" Margin="0,4,0,0" HorizontalAlignment="Left">
+                                <TextBox Name="LtNameBox" Width="150" Watermark="Lower third name"/>
+                                <TextBox Name="LtRoleBox" Grid.Column="1" Width="150" Margin="6,0,0,0" Watermark="role / title"/>
+                            </Grid>
+                        </StackPanel>
+
+                        <ScrollViewer>
+                            <StackPanel>
+                                <ListBox Name="GraphicsList" Height="110" Background="{DynamicResource BListBg}"
+                                         SelectionChanged="OnGraphicSelected">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" Margin="2">
+                                                <TextBlock Text="{Binding StartText}" FontSize="10" Foreground="{DynamicResource BTxtMid}" Margin="0,0,8,0"/>
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Margin="0,0,8,0"/>
+                                                <TextBlock Text="{Binding Preview}" Foreground="{DynamicResource BTxtMid}"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                                <TextBlock Text="TEXT / GRAPHIC PROPERTIES" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,8,0,4"/>
+                                <TextBox Name="GContentBox" Watermark="Content (text layers)" LostFocus="OnGfxEditAppliedLost"/>
+                                <Grid ColumnDefinitions="Auto,*,Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" Margin="0,6,0,0">
+                                    <TextBlock Text="Font" VerticalAlignment="Center"/>
+                                    <ComboBox Name="GFontCombo" Grid.Column="1" Margin="8,2,4,2" MinWidth="120"/>
+                                    <TextBlock Grid.Column="2" Text="Size" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                    <NumericUpDown Name="GFontSizeB" Grid.Column="3" Margin="8,2,0,2" Minimum="8" Maximum="400" Value="48" ValueChanged="OnGfxNum"/>
+
+                                    <TextBlock Grid.Row="1" Text="Style" VerticalAlignment="Center"/>
+                                    <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="8,2,0,2">
+                                        <ToggleButton Name="GBoldTgl" Content="B" Width="30" FontWeight="Bold" Checked="OnGfxEditApplied" Unchecked="OnGfxEditApplied"/>
+                                        <ToggleButton Name="GItalicTgl" Content="I" Width="30" Margin="4,0,0,0" FontStyle="Italic" Checked="OnGfxEditApplied" Unchecked="OnGfxEditApplied"/>
+                                        <ComboBox Name="GAlignCombo" SelectedIndex="1" Width="86" Margin="8,0,0,0" SelectionChanged="OnGfxSelChanged">
+                                            <ComboBoxItem Content="Left"/><ComboBoxItem Content="Center"/><ComboBoxItem Content="Right"/>
+                                        </ComboBox>
+                                        <CheckBox Name="GShadowChk" Content="Shadow" Margin="10,0,0,0" Checked="OnGfxEditApplied" Unchecked="OnGfxEditApplied"/>
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="2" Grid.Row="1" Text="Fill" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                    <TextBox Name="GFillBox" Grid.Row="1" Grid.Column="3" Text="#FFFFFF" Margin="8,2,0,2" LostFocus="OnGfxEditAppliedLost"/>
+
+                                    <TextBlock Grid.Row="2" Text="Pos X" VerticalAlignment="Center"/>
+                                    <NumericUpDown Name="GPosX" Grid.Row="2" Grid.Column="1" Margin="8,2,4,2" Minimum="-5000" Maximum="5000" ValueChanged="OnGfxNum"/>
+                                    <TextBlock Grid.Column="2" Grid.Row="2" Text="Pos Y" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                    <NumericUpDown Name="GPosY" Grid.Row="2" Grid.Column="3" Margin="8,2,0,2" Minimum="-5000" Maximum="5000" ValueChanged="OnGfxNum"/>
+
+                                    <TextBlock Grid.Row="3" Text="Opacity %" VerticalAlignment="Center"/>
+                                    <Slider Name="GOpacitySlider" Grid.Row="3" Grid.Column="1" Minimum="0" Maximum="100" Value="100"
+                                            VerticalAlignment="Center" Margin="8,2,4,2" ValueChanged="OnGfxRange"/>
+                                    <TextBlock Grid.Column="2" Grid.Row="3" Text="Duration s" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                    <NumericUpDown Name="GLayerDurB" Grid.Row="3" Grid.Column="3" Margin="8,2,0,2" Minimum="0.5" Maximum="120" Increment="0.5" Value="5" ValueChanged="OnGfxNum"/>
+
+                                    <TextBlock Grid.Row="4" Text="Anim In" VerticalAlignment="Center"/>
+                                    <ComboBox Name="GAnimIn" Grid.Row="4" Grid.Column="1" Margin="8,2,4,2" SelectionChanged="OnGfxSelChanged"/>
+                                    <TextBlock Grid.Column="2" Grid.Row="4" Text="Anim Out" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                    <ComboBox Name="GAnimOut" Grid.Row="4" Grid.Column="3" Margin="8,2,0,2" SelectionChanged="OnGfxSelChanged"/>
+                                </Grid>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </DockPanel>
+                </TabItem>
+
+                <TabItem Header="Subtitles">
+                    <DockPanel Margin="8">
+                        <StackPanel DockPanel.Dock="Bottom" Margin="0,6,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="Import .srt" Padding="8,3" Click="OnImportSrt"/>
+                                <Button Content=".vtt" Padding="8,3" Margin="6,0,0,0" Click="OnImportVtt"/>
+                                <Button Content=".ass" Padding="8,3" Margin="6,0,0,0" Click="OnImportAss"/>
+                                <Button Content="Export .srt" Padding="8,3" Margin="6,0,0,0" Click="OnExportSrt"/>
+                                <Button Content="+ Cue" Padding="8,3" Margin="6,0,0,0" Click="OnAddSubtitleCue"/>
+                            </StackPanel>
+                            <Grid ColumnDefinitions="Auto,*" Margin="0,4,0,0">
+                                <TextBlock Text="Caption preset:" VerticalAlignment="Center" FontSize="11"/>
+                                <ComboBox Name="SubPresetCombo" Grid.Column="1" Margin="8,0,0,0" MinWidth="140" SelectionChanged="OnSubPresetChanged"/>
+                            </Grid>
+                        </StackPanel>
+                        <ListBox Name="SubList" Background="{DynamicResource BListBg}" SelectionChanged="OnSubtitleSelected">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnDefinitions="28,74,74,*" Margin="2">
+                                        <TextBlock Text="{Binding Index}" Foreground="{DynamicResource BTxtMid}"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding StartText}" FontSize="11" Foreground="{DynamicResource BTxtMid}"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding EndText}" FontSize="11" Foreground="{DynamicResource BTxtMid}"/>
+                                        <TextBox Grid.Column="3" Text="{Binding Text, Mode=TwoWay}" BorderThickness="0" Background="Transparent"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+                </TabItem>
             </TabControl>
         </Grid>
     </DockPanel>
 </UserControl>
+
+
+
+
+
 
 

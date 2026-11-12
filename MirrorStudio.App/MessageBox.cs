@@ -7,8 +7,23 @@ namespace MirrorStudio.App
 {
     public static class MessageBox
     {
+        /// <summary>ShowDialog requires a visible owner; wait for it if needed.</summary>
+        private static async Task WaitForOwnerVisible(Window owner)
+        {
+            if (owner.IsVisible) return;
+            var tcs = new TaskCompletionSource();
+            void OnOpened(object? s, System.EventArgs e)
+            {
+                owner.Opened -= OnOpened;
+                tcs.TrySetResult();
+            }
+            owner.Opened += OnOpened;
+            await tcs.Task;
+        }
+
         public static async Task Show(Window owner, string title, string message)
         {
+            await WaitForOwnerVisible(owner);
             var dlg = new Window
             {
                 Title = title,
@@ -26,6 +41,7 @@ namespace MirrorStudio.App
         /// <summary>Yes/No question. True when the user confirms.</summary>
         public static async Task<bool> ShowConfirm(Window owner, string title, string message)
         {
+            await WaitForOwnerVisible(owner);
             bool confirmed = false;
             Window dlg = new()
             {

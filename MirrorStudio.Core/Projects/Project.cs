@@ -14,6 +14,12 @@ public class Project
 
     public List<TimelineTrackData> Tracks { get; set; } = [];
 
+    /// <summary>Milestone 11 graphics layers, serialized (schema lives in MirrorStudio.Graphics).</summary>
+    public string GraphicsJson { get; set; } = "[]";
+
+    /// <summary>Milestone 11 subtitle tracks, serialized.</summary>
+    public string SubtitlesJson { get; set; } = "[]";
+
     public DateTime CreatedAt { get; set; } =
         DateTime.UtcNow;
 

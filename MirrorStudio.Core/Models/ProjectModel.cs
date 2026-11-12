@@ -29,6 +29,10 @@ namespace MirrorStudio.Core.Models
         public string DefaultExportFormat { get; set; } = "MP4 H.264";
         public TimelineData Timeline { get; set; } = new();
 
+        // Milestone 11: text/shapes/images overlays + subtitle tracks
+        public List<MirrorStudio.Graphics.Models.GraphicLayer> Graphics { get; set; } = new();
+        public List<MirrorStudio.Graphics.Subtitles.SubtitleTrack> SubtitleTracks { get; set; } = new();
+
         public ProjectModel()
         {
             Id = string.Empty;

@@ -1,111 +1,185 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="MirrorStudio.App.Workspaces.ImageStudioView">
-    <Grid ColumnDefinitions="220,*,300">
+    <Grid ColumnDefinitions="236,*,320">
+        <!-- ===== LEFT: media, tools, brush, transform, export ===== -->
         <Border Grid.Column="0" Background="{DynamicResource BPanel}">
             <ScrollViewer>
-                <StackPanel Margin="10">
-                    <TextBlock Text="MEDIA (drag → canvas or double-click)" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,4"/>
-                    <ScrollViewer Height="150" VerticalScrollBarVisibility="Auto">
-                        <StackPanel Name="ImageMediaHost"/>
-                    </ScrollViewer>
+                <StackPanel Margin="8">
+                    <TextBlock Text="MEDIA (drag → canvas or double-click)" Foreground="{DynamicResource BTxtMid}" FontSize="10.5" Margin="0,2"/>
+                    <Border Height="120" Background="{DynamicResource BInset}" CornerRadius="3" Margin="0,2">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel Name="ImageMediaHost"/>
+                        </ScrollViewer>
+                    </Border>
 
-                    <TextBlock Text="TOOLS" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,4"/>
+                    <TextBlock Text="TOOLS" Foreground="{DynamicResource BTxtMid}" FontSize="10.5" Margin="0,10,0,2"/>
+                    <WrapPanel>
+                        <Button Content="Move" Tag="move" Width="68" Margin="2" Click="OnToolButton"/>
+                        <Button Content="Marquee" Tag="marquee" Width="68" Margin="2" Click="OnToolButton"/>
+                        <Button Content="Ellipse" Tag="ellipse" Width="68" Margin="2" Click="OnToolButton"/>
+                        <Button Content="Lasso" Tag="lasso" Width="68" Margin="2" Click="OnToolButton"/>
+                        <Button Content="Crop" Tag="crop" Width="68" Margin="2" Click="OnToolButton"/>
+                        <Button Content="Brush" Tag="brush" Width="68" Margin="2" Click="OnToolButton"/>
+                        <Button Content="Eraser" Tag="eraser" Width="68" Margin="2" Click="OnToolButton"/>
+                        <Button Content="Clone" Tag="clone" Width="68" Margin="2" Click="OnToolButton"/>
+                        <Button Content="Heal" Tag="heal" Width="68" Margin="2" Click="OnToolButton"/>
+                        <Button Content="Text" Tag="text" Width="68" Margin="2" Click="OnToolButton"/>
+                        <Button Content="Shape" Tag="shape" Width="68" Margin="2" Click="OnToolButton"/>
+                        <Button Content="Zoom" Tag="zoom" Width="68" Margin="2" Click="OnToolButton"/>
+                    </WrapPanel>
+
+                    <TextBlock Text="BRUSH" Foreground="{DynamicResource BTxtMid}" FontSize="10.5" Margin="0,10,0,2"/>
+                    <ComboBox Name="BrushPresetCombo" Margin="0,2" SelectionChanged="OnBrushPresetChanged"/>
+                    <TextBlock Text="Size" Foreground="{DynamicResource BTxtHigh}" FontSize="10"/>
+                    <Slider Name="BrushSizeSlider" Minimum="1" Maximum="300" Value="24" ValueChanged="OnBrushParamChanged"/>
+                    <TextBlock Text="Opacity %" Foreground="{DynamicResource BTxtHigh}" FontSize="10"/>
+                    <Slider Name="BrushOpacitySlider" Minimum="1" Maximum="100" Value="100" ValueChanged="OnBrushParamChanged"/>
+                    <TextBlock Text="Flow %" Foreground="{DynamicResource BTxtHigh}" FontSize="10"/>
+                    <Slider Name="BrushFlowSlider" Minimum="1" Maximum="100" Value="100" ValueChanged="OnBrushParamChanged"/>
+                    <TextBlock Text="Hardness %" Foreground="{DynamicResource BTxtHigh}" FontSize="10"/>
+                    <Slider Name="BrushHardnessSlider" Minimum="0" Maximum="100" Value="50" ValueChanged="OnBrushParamChanged"/>
+
+                    <TextBlock Text="TRANSFORM (document)" Foreground="{DynamicResource BTxtMid}" FontSize="10.5" Margin="0,10,0,2"/>
                     <StackPanel Orientation="Horizontal">
-                        <Button Content="Brush" Width="70" Margin="2" Click="OnBrushTool"/>
-                        <Button Content="Pencil" Width="70" Margin="2" Click="OnPencilTool"/>
+                        <Button Content="Rotate 90°" Width="70" Margin="2" Click="OnRotate90"/>
+                        <Button Content="Flip H" Width="64" Margin="2" Click="OnFlipH"/>
+                        <Button Content="Flip V" Width="64" Margin="2" Click="OnFlipV"/>
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal">
-                        <Button Content="Eraser" Width="70" Margin="2" Click="OnEraserTool"/>
-                        <Button Content="Fill" Width="70" Margin="2" Click="OnFillTool"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal">
-                        <Button Content="Crop" Width="70" Margin="2" Click="OnCropTool"/>
-                        <Button Content="Move" Width="70" Margin="2" Click="OnMoveTool"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                        <TextBlock Text="W" VerticalAlignment="Center" Foreground="{DynamicResource BTxtHigh}" FontSize="10"/>
+                        <TextBox Name="TxtResizeW" Width="56" Margin="2" Text="800"/>
+                        <TextBlock Text="H" VerticalAlignment="Center" Foreground="{DynamicResource BTxtHigh}" FontSize="10"/>
+                        <TextBox Name="TxtResizeH" Width="56" Margin="2" Text="600"/>
+                        <Button Content="Resize" Margin="2" Click="OnResize"/>
                     </StackPanel>
 
-                    <TextBlock Text="RETOUCH" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,16,0,4"/>
-                    <StackPanel Orientation="Horizontal">
-                        <Button Content="Clone" Width="70" Margin="2" Click="OnCloneTool"/>
-                        <Button Content="Heal" Width="70" Margin="2" Click="OnHealTool"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal">
-                        <Button Content="Dodge" Width="70" Margin="2" Click="OnDodgeTool"/>
-                        <Button Content="Burn" Width="70" Margin="2" Click="OnBurnTool"/>
-                    </StackPanel>
-
-                    <TextBlock Text="BRUSH SIZE" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,16,0,4"/>
-                    <Slider Name="BrushSizeSlider" Minimum="1" Maximum="200" Value="20" ValueChanged="OnBrushSizeChanged"/>
-                    <TextBlock Text="OPACITY" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,12,0,4"/>
-                    <Slider Name="BrushOpacitySlider" Minimum="1" Maximum="100" Value="100" ValueChanged="OnBrushSizeChanged"/>
+                    <TextBlock Text="EXPORT" Foreground="{DynamicResource BTxtMid}" FontSize="10.5" Margin="0,10,0,2"/>
+                    <ComboBox Name="ExportFormatCombo" Margin="0,2">
+                        <ComboBoxItem Content="PNG" IsSelected="True"/>
+                        <ComboBoxItem Content="JPEG"/>
+                        <ComboBoxItem Content="WebP"/>
+                        <ComboBoxItem Content="TIFF"/>
+                        <ComboBoxItem Content="BMP"/>
+                    </ComboBox>
+                    <TextBlock Text="Quality %" Foreground="{DynamicResource BTxtHigh}" FontSize="10"/>
+                    <Slider Name="ExportQualitySlider" Minimum="1" Maximum="100" Value="92"/>
+                    <Button Content="Export As..." Margin="0,4,0,0" Click="OnExport"/>
                 </StackPanel>
             </ScrollViewer>
         </Border>
 
+        <!-- ===== CENTER: preview ===== -->
         <Border Grid.Column="1" Background="{DynamicResource BPanelAlt}">
             <DockPanel>
                 <Border DockPanel.Dock="Top" Background="{DynamicResource BInset}" Padding="8">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Name="ActiveToolText" Text="Tool: none" Foreground="{DynamicResource BTxtHigh}" VerticalAlignment="Center"/>
-                        <Button Content="Open Image..." Margin="16,0,0,0" Click="OnOpenImage"/>
-                        <Button Content="Save Copy..." Margin="8,0,0,0" Click="OnSaveImage"/>
+                        <TextBlock Name="ActiveToolText" Text="Tool: move" Foreground="{DynamicResource BTxtHigh}" VerticalAlignment="Center"/>
+                        <Button Content="New Image..." Margin="12,0,0,0" Click="OnNewImage"/>
+                        <Button Content="Open Image..." Margin="6,0,0,0" Click="OnOpenImage"/>
+                        <TextBlock Text="Zoom" VerticalAlignment="Center" Foreground="{DynamicResource BTxtMid}" FontSize="10" Margin="16,0,4,0"/>
+                        <Slider Name="ZoomSlider" Minimum="0.1" Maximum="4" Value="1" Width="120" ValueChanged="OnZoomChanged"/>
+                        <TextBlock Name="ZoomLabel" Text="100%" VerticalAlignment="Center" Foreground="{DynamicResource BTxtHigh}" FontSize="10" Margin="4,0,0,0"/>
                     </StackPanel>
                 </Border>
                 <Border Name="CanvasBorder" Background="{DynamicResource BTrackHead}" Margin="8" CornerRadius="3">
-                    <Grid>
-                        <TextBlock Name="CanvasHintText" Text="CANVAS&#10;(no image open)" Foreground="{DynamicResource BTxtDim}" FontSize="18"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center"/>
-                        <Image Name="CanvasImage" Stretch="Uniform"/>
-                    </Grid>
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                        <Canvas Name="StageCanvas" Width="800" Height="600">
+                            <TextBlock Name="CanvasHintText" Text="CANVAS&#10;(no image open)" Foreground="{DynamicResource BTxtDim}" FontSize="18"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" IsHitTestVisible="False"/>
+                            <Image Name="CanvasImage" Stretch="None"/>
+                            <Canvas Name="SelectionCanvas"/>
+                        </Canvas>
+                    </ScrollViewer>
                 </Border>
             </DockPanel>
         </Border>
 
+        <!-- ===== RIGHT: layers / adjustments / filters / properties ===== -->
         <TabControl Grid.Column="2" Background="{DynamicResource BPanel}">
             <TabItem Header="Layers">
                 <DockPanel Margin="8">
-                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
-                        <Button Content="Add" Width="60" Margin="2" Click="OnAddLayer"/>
-                        <Button Content="Delete" Width="60" Margin="2" Click="OnDeleteLayer"/>
-                        <Button Content="Up" Width="50" Margin="2" Click="OnMoveLayerUp"/>
-                        <Button Content="Down" Width="60" Margin="2" Click="OnMoveLayerDown"/>
+                    <StackPanel DockPanel.Dock="Bottom" Margin="0,6,0,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Add Raster" Width="84" Margin="2" Click="OnAddLayer"/>
+                            <Button Content="+ Adjust" Width="74" Margin="2" Click="OnAddAdjustmentLayer"/>
+                            <Button Content="Delete" Width="64" Margin="2" Click="OnDeleteLayer"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                            <Button Content="Up" Width="60" Margin="2" Click="OnMoveLayerUp"/>
+                            <Button Content="Down" Width="60" Margin="2" Click="OnMoveLayerDown"/>
+                            <CheckBox Name="ChkLayerVisible" Content="Visible" Margin="6,0,0,0" Checked="OnLayerVisibleChanged" Unchecked="OnLayerVisibleChanged"/>
+                        </StackPanel>
+                        <TextBlock Text="Opacity %" Foreground="{DynamicResource BTxtHigh}" FontSize="10" Margin="0,6,0,0"/>
+                        <Slider Name="SldLayerOpacity" Minimum="0" Maximum="100" Value="100" ValueChanged="OnLayerOpacityChanged"/>
+                        <TextBlock Text="Blend mode" Foreground="{DynamicResource BTxtHigh}" FontSize="10" Margin="0,4,0,0"/>
+                        <ComboBox Name="CboLayerBlend" SelectionChanged="OnLayerBlendChanged"/>
                     </StackPanel>
-                    <ListBox Name="LayersList"/>
+                    <ListBox Name="LayersList" SelectionChanged="OnLayerSelected"/>
                 </DockPanel>
             </TabItem>
+
+            <TabItem Header="Adjustments">
+                <ScrollViewer>
+                    <StackPanel Margin="10">
+                        <TextBlock Text="Non-destructive — edits a live Adjustment layer" Foreground="{DynamicResource BTxtMid}" FontSize="10" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                        <TextBlock Text="Brightness" Foreground="{DynamicResource BTxtHigh}" FontSize="10"/>
+                        <Slider Name="SldBrightness" Minimum="-100" Maximum="100" Value="0" ValueChanged="OnAdjustChanged"/>
+                        <TextBlock Text="Contrast" Foreground="{DynamicResource BTxtHigh}" FontSize="10"/>
+                        <Slider Name="SldContrast" Minimum="-100" Maximum="100" Value="0" ValueChanged="OnAdjustChanged"/>
+                        <TextBlock Text="Exposure (stops)" Foreground="{DynamicResource BTxtHigh}" FontSize="10"/>
+                        <Slider Name="SldExposure" Minimum="-3" Maximum="3" Value="0" ValueChanged="OnAdjustChanged"/>
+                        <TextBlock Text="Saturation" Foreground="{DynamicResource BTxtHigh}" FontSize="10"/>
+                        <Slider Name="SldSaturation" Minimum="-100" Maximum="100" Value="0" ValueChanged="OnAdjustChanged"/>
+                        <TextBlock Text="Temperature" Foreground="{DynamicResource BTxtHigh}" FontSize="10"/>
+                        <Slider Name="SldTemperature" Minimum="-100" Maximum="100" Value="0" ValueChanged="OnAdjustChanged"/>
+                        <TextBlock Text="Tint" Foreground="{DynamicResource BTxtHigh}" FontSize="10"/>
+                        <Slider Name="SldTint" Minimum="-100" Maximum="100" Value="0" ValueChanged="OnAdjustChanged"/>
+                        <TextBlock Text="Highlights" Foreground="{DynamicResource BTxtHigh}" FontSize="10"/>
+                        <Slider Name="SldHighlights" Minimum="-100" Maximum="100" Value="0" ValueChanged="OnAdjustChanged"/>
+                        <TextBlock Text="Shadows" Foreground="{DynamicResource BTxtHigh}" FontSize="10"/>
+                        <Slider Name="SldShadows" Minimum="-100" Maximum="100" Value="0" ValueChanged="OnAdjustChanged"/>
+                        <TextBlock Text="Gamma" Foreground="{DynamicResource BTxtHigh}" FontSize="10"/>
+                        <Slider Name="SldGamma" Minimum="20" Maximum="300" Value="100" ValueChanged="OnAdjustChanged"/>
+                        <Button Content="Reset Adjustments" Margin="0,10,0,0" Click="OnAdjustReset"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Filters">
+                <ScrollViewer>
+                    <StackPanel Margin="10">
+                        <TextBlock Text="Strength %" Foreground="{DynamicResource BTxtHigh}" FontSize="10"/>
+                        <Slider Name="SldFilterStrength" Minimum="1" Maximum="100" Value="40"/>
+                        <TextBlock Text="BLUR &amp; SHARPEN" Foreground="{DynamicResource BTxtMid}" FontSize="10.5" Margin="0,8,0,2"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Blur" Width="80" Margin="2" Click="OnFilterBlur"/>
+                            <Button Content="Sharpen" Width="80" Margin="2" Click="OnFilterSharpen"/>
+                        </StackPanel>
+                        <TextBlock Text="NOISE &amp; VIGNETTE" Foreground="{DynamicResource BTxtMid}" FontSize="10.5" Margin="0,8,0,2"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Denoise" Width="80" Margin="2" Click="OnFilterNoise"/>
+                            <Button Content="Vignette" Width="80" Margin="2" Click="OnFilterVignette"/>
+                        </StackPanel>
+                        <TextBlock Text="COLOR" Foreground="{DynamicResource BTxtMid}" FontSize="10.5" Margin="0,8,0,2"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Grayscale" Width="80" Margin="2" Click="OnFilterGrayscale"/>
+                            <Button Content="Sepia" Width="80" Margin="2" Click="OnFilterSepia"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                            <Button Content="Invert" Width="80" Margin="2" Click="OnFilterInvert"/>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
             <TabItem Header="Properties">
                 <StackPanel Margin="12">
                     <TextBlock Text="DOCUMENT" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,4,0,8"/>
-                    <TextBlock Name="PropDocText" Text="No image open" Foreground="{DynamicResource BTxtHigh}"/>
+                    <TextBlock Name="PropDocText" Text="No image open" Foreground="{DynamicResource BTxtHigh}" TextWrapping="Wrap"/>
                     <Separator Margin="0,12"/>
                     <TextBlock Text="SELECTED LAYER" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,0,0,8"/>
-                    <TextBlock Name="PropLayerText" Text="-" Foreground="{DynamicResource BTxtHigh}"/>
-                </StackPanel>
-            </TabItem>
-            <TabItem Header="Filters">
-                <StackPanel Margin="10">
-                    <TextBlock Text="BLUR &amp; SHARPEN" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,4,0,4"/>
-                    <StackPanel Orientation="Horizontal">
-                        <Button Content="Blur" Width="80" Margin="2" Click="OnBlurFilter"/>
-                        <Button Content="Sharpen" Width="80" Margin="2" Click="OnSharpenFilter"/>
-                    </StackPanel>
-                    <TextBlock Text="COLOR" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,14,0,4"/>
-                    <StackPanel Orientation="Horizontal">
-                        <Button Content="Grayscale" Width="80" Margin="2" Click="OnGrayscaleFilter"/>
-                        <Button Content="Sepia" Width="80" Margin="2" Click="OnSepiaFilter"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal">
-                        <Button Content="Invert" Width="80" Margin="2" Click="OnInvertFilter"/>
-                        <Button Content="Vintage" Width="80" Margin="2" Click="OnVintageFilter"/>
-                    </StackPanel>
-                    <TextBlock Text="ADJUST" Foreground="{DynamicResource BTxtMid}" FontSize="11" Margin="0,14,0,4"/>
-                    <TextBlock Text="Brightness" Foreground="{DynamicResource BTxtHigh}" Margin="0,4"/>
-                    <Slider Minimum="-100" Maximum="100" Value="0"/>
-                    <TextBlock Text="Contrast" Foreground="{DynamicResource BTxtHigh}" Margin="0,8"/>
-                    <Slider Minimum="-100" Maximum="100" Value="0"/>
-                    <TextBlock Text="Saturation" Foreground="{DynamicResource BTxtHigh}" Margin="0,8"/>
-                    <Slider Minimum="0" Maximum="200" Value="100"/>
-                    <Button Content="Apply Adjustments" Margin="0,12,0,0" Click="OnApplyAdjustments"/>
+                    <TextBlock Name="PropLayerText" Text="-" Foreground="{DynamicResource BTxtHigh}" TextWrapping="Wrap"/>
                 </StackPanel>
             </TabItem>
         </TabControl>

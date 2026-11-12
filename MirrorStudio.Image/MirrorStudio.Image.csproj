@@ -4,9 +4,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\MirrorStudio.Core\MirrorStudio.Core.csproj" />
+    <ProjectReference Include="..\MirrorStudio.Graphics\MirrorStudio.Graphics.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="SkiaSharp" Version="4.151.1" />

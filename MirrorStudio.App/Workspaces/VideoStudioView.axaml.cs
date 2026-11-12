@@ -1,3 +1,4 @@
+﻿using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -6,9 +7,13 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using MirrorStudio.Core.Models;
 using MirrorStudio.Timeline;
+using GfxModels = MirrorStudio.Graphics.Models;
+using GfxSubs = MirrorStudio.Graphics.Subtitles;
+using GfxTemplates = MirrorStudio.Graphics.Templates;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -27,6 +32,7 @@ namespace MirrorStudio.App.Workspaces
         private readonly SessionState _session;
         private DispatcherTimer? _playTimer;
         private readonly Dictionary<string, Bitmap?> _bitmapCache = new();
+        private Services.GraphicsOverlayRenderer? _graphicsRenderer;
 
         // media library selection (entry object, not an index)
         private MediaEntry? _selectedMediaEntry;
@@ -34,7 +40,7 @@ namespace MirrorStudio.App.Workspaces
         // drag from media library
         private const string MediaDropFormat = Services.MediaCardFactory.MediaDropFormat;
 
-        // async video frame cache: key = "path|time(0.25s)" → bitmap; extraction dedup set
+        // async video frame cache: key = "path|time(0.25s)" â†’ bitmap; extraction dedup set
         private readonly Dictionary<string, Bitmap?> _frameCache = new();
         private readonly HashSet<string> _framesInFlight = new();
         private string? _pendingFrameKey;
@@ -70,7 +76,7 @@ namespace MirrorStudio.App.Workspaces
         public MirrorStudio.Timeline.ViewModels.TimelineViewModel TimelineViewModel { get; }
         private const double BasePps = 30.0;
 
-        // Milestone 4: preview/playback — engine owns the clock while playing,
+        // Milestone 4: preview/playback â€” engine owns the clock while playing,
         // renderer is behind an interface so a GPU renderer can replace it later.
         public MirrorStudio.Rendering.Interfaces.IPlaybackEngine Playback { get; }
         public ViewModels.MainWindowViewModel PlaybackVm { get; } = new();
@@ -111,6 +117,10 @@ namespace MirrorStudio.App.Workspaces
             Playback = new MirrorStudio.Rendering.Services.PlaybackEngine(
                 MirrorStudio.Video.Services.MediaEngineLocator.ResolveFfmpeg(_session.Settings.FFmpegPath));
             _previewRenderer = new Services.AvaloniaPreviewRenderer(PreviewImage);
+            _graphicsRenderer = new Services.GraphicsOverlayRenderer(GraphicsOverlay)
+            {
+                ResolvePathHook = p => _session.ResolvePath(p)
+            };
 
             FontCombo.ItemsSource = Avalonia.Media.FontManager.Current.SystemFonts.Select(f => f.Name).ToList();
 
@@ -121,11 +131,19 @@ namespace MirrorStudio.App.Workspaces
             _playTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(40) };
             _playTimer.Tick += (_, _) => AdvancePlayback();
 
-            // drag & drop targets (media library → timeline / program monitor)
+            // drag & drop targets (media library â†’ timeline / program monitor)
+            // NOTE: without SetAllowDrop the element never receives DragOver/Drop
+            DragDrop.SetAllowDrop(ClipsCanvas, true);
+            DragDrop.SetAllowDrop(StageBorder, true);
             ClipsCanvas.AddHandler(DragDrop.DragOverEvent, OnTimelineDragOver);
             ClipsCanvas.AddHandler(DragDrop.DropEvent, OnTimelineDrop);
             StageBorder.AddHandler(DragDrop.DragOverEvent, OnPreviewDragOver);
             StageBorder.AddHandler(DragDrop.DropEvent, OnPreviewDrop);
+
+            // drop files straight from Windows Explorer into the media browser
+            DragDrop.SetAllowDrop(MediaScroll, true);
+            MediaScroll.AddHandler(DragDrop.DragOverEvent, OnBrowserFileDragOver);
+            MediaScroll.AddHandler(DragDrop.DropEvent, OnBrowserFileDrop);
 
             // keyboard shortcuts (Space/J/K/L/S/I/O/Delete/arrows/Home/End)
             this.AddHandler(KeyDownEvent, OnEditorKeyDown, RoutingStrategies.Tunnel);
@@ -133,7 +151,11 @@ namespace MirrorStudio.App.Workspaces
             DetachAllHandlers();
             AttachInspectorHandlers();
 
+            InitGraphicsPanel();
+
             RefreshProjectState();
+            RefreshGraphicsList();
+            RefreshSubs();
         }
 
         // ---------- project / refresh ----------
@@ -146,8 +168,19 @@ namespace MirrorStudio.App.Workspaces
                 _loadedProjectForUndo = _session.CurrentProject;
                 _undo.Clear();
             }
-            if (!Dispatcher.UIThread.CheckAccess()) { Dispatcher.UIThread.Post(RefreshProjectState); return; }
+            if (!Dispatcher.UIThread.CheckAccess())
+            {
+                Dispatcher.UIThread.Post(() =>
+                {
+                    RefreshProjectState();
+                    RefreshGraphicsList();
+                    RefreshSubs();
+                });
+                return;
+            }
             RefreshProjectState();
+            RefreshGraphicsList();
+            RefreshSubs();
         }
 
         private MirrorStudio.Core.Models.ProjectModel? _loadedProjectForUndo;
@@ -262,7 +295,7 @@ namespace MirrorStudio.App.Workspaces
             {
                 MediaListHost.Children.Add(new TextBlock
                 {
-                    Text = "No media yet.\nUse Import… to add video,\naudio and images.",
+                    Text = "No media yet.\nUse Importâ€¦ to add video,\naudio and images.",
                     Foreground = Res("BTxtLow"),
                     FontSize = 11,
                     TextWrapping = TextWrapping.Wrap,
@@ -351,8 +384,12 @@ namespace MirrorStudio.App.Workspaces
                 tap: () =>
                 {
                     _selectedMediaEntry = entry;
-                    _session.SelectMedia(_session.ResolvePath(entry.RelativePath) ?? entry.RelativePath);
                     RestyleMediaSelection();
+                    // deferred: SelectMedia triggers SelectionChanged â†’ timeline
+                    // rebuild + preview render; running it inline can stall the
+                    // input pump between the two presses of a double-click
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                        _session.SelectMedia(_session.ResolvePath(entry.RelativePath) ?? entry.RelativePath));
                 },
                 doubleTap: () =>
                 {
@@ -378,12 +415,12 @@ namespace MirrorStudio.App.Workspaces
 
         private static string IconFor(string type) => type switch
         {
-            "Video" => "🎬",
-            "Audio" => "🎵",
-            "Images" => "🖼",
-            "Graphics" => "🎨",
-            "Fonts" => "🔤",
-            _ => "📄"
+            "Video" => "ðŸŽ¬",
+            "Audio" => "ðŸŽµ",
+            "Images" => "ðŸ–¼",
+            "Graphics" => "ðŸŽ¨",
+            "Fonts" => "ðŸ”¤",
+            _ => "ðŸ“„"
         };
 
         private void OnCategoryChanged(object? sender, SelectionChangedEventArgs e) => RebuildMediaList();
@@ -458,9 +495,22 @@ namespace MirrorStudio.App.Workspaces
             var files = await new Services.ProjectDialogService(dialogs).ImportMediaAsync();
             if (files == null || files.Length == 0) return;
 
-            // full import workflow: validation → copy → FFprobe → thumbnail → MediaEntry
+            await ImportFilesAsync(files);
+        }
+
+        /// <summary>Shared by the Import dialog and Explorer-drops onto the media
+        /// browser: validate â†’ copy â†’ probe â†’ thumbnail â†’ auto-place on timeline.</summary>
+        private async Task ImportFilesAsync(string[] files)
+        {
+            var proj = _session.CurrentProject;
+            var win = TopLevel.GetTopLevel(this) as Window;
+            if (proj == null || !_session.HasProject || win == null) return;
+
+            // full import workflow: validation â†’ copy â†’ FFprobe â†’ thumbnail â†’ MediaEntry
             var importer = new MirrorStudio.Media.Services.MediaImportService(
                 _session.Settings.FFmpegPath, _session.Settings.FFprobePath);
+
+            var fresh = new List<MediaEntry>();
 
             foreach (var file in files)
             {
@@ -471,29 +521,41 @@ namespace MirrorStudio.App.Workspaces
                         continue; // unsupported file
 
                     if (!proj.Media.Any(m => m.RelativePath.Equals(asset.RelativePath, StringComparison.OrdinalIgnoreCase)))
-                        proj.Media.Add(asset.ToMediaEntry());
+                    {
+                        var entry = asset.ToMediaEntry();
+                        proj.Media.Add(entry);
+                        fresh.Add(entry);
+                    }
 
                     RebuildMediaList();
                 }
                 catch (FileNotFoundException)
                 {
-                    // file vanished between dialog and copy — skip silently
+                    // file vanished between dialog and copy â€” skip silently
                 }
                 catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
                 {
-                    MessageBox.Show(TopLevel.GetTopLevel(this) as Window, "Import Failed",
+                    MessageBox.Show(win, "Import Failed",
                         $"{IOPath.GetFileName(file)}: {ex.Message}");
                 }
                 catch (Exception ex)
                 {
                     // never let one bad file crash the app
-                    MessageBox.Show(TopLevel.GetTopLevel(this) as Window, "Import Failed",
+                    MessageBox.Show(win, "Import Failed",
                         $"{IOPath.GetFileName(file)}: {ex.Message}");
                 }
             }
 
             proj.UpdatedAt = DateTime.UtcNow;
             RebuildMediaList();
+
+            // auto-place freshly imported media on the timeline: playhead jumps to
+            // each clip start which immediately drives RenderPreviewFrame
+            foreach (var entry in fresh)
+                AddEntryToTimeline(entry);
+
+            if (fresh.Count > 0)
+                Services.DndLog.W($"IMP imported+placed {fresh.Count} file(s)");
         }
 
         private MediaEntry? SelectedMediaEntry() => _selectedMediaEntry;
@@ -627,7 +689,7 @@ namespace MirrorStudio.App.Workspaces
                     var selected = ReferenceEquals(clip, _session.SelectedClip);
                     var handleColor = new SolidColorBrush(Color.Parse(selected ? "#CCFFFFFF" : "#55FFFFFF"));
 
-                    // spec M7 §11: visible left/right trim handles at the clip edges
+                    // spec M7 Â§11: visible left/right trim handles at the clip edges
                     var leftHandle = new Rectangle
                     {
                         Width = 6,
@@ -769,7 +831,7 @@ namespace MirrorStudio.App.Workspaces
             _dragOrigTrack = clip.TrackIndex;
             _draggingTimeline = false;
 
-            // edge zones → trim instead of move
+            // edge zones â†’ trim instead of move
             double x = p.Position.X;
             double w = border.Bounds.Width;
             _trimEdge = x <= EdgeZonePx ? TrimEdge.Left
@@ -961,7 +1023,7 @@ namespace MirrorStudio.App.Workspaces
                     bool ok = TimelineEngine.MoveTo(tl, _dragClip, newStart, newTrack);
                     if (!ok)
                     {
-                        // overlap rejected — snap back
+                        // overlap rejected â€” snap back
                         Canvas.SetLeft(_dragClipBorder, _dragOrigStart * Pps);
                         Canvas.SetTop(_dragClipBorder, origRow * TrackHeight + 3);
                     }
@@ -986,10 +1048,24 @@ namespace MirrorStudio.App.Workspaces
 
         // ---------- drag & drop from media library ----------
 
-        private MediaEntry? EntryFromDrop(DragEventArgs e) =>
-            e.Data?.Get(MediaDropFormat) is string rel
-                ? _session.CurrentProject?.Media.FirstOrDefault(m => m.RelativePath == rel)
-                : null;
+        private MediaEntry? EntryFromDrop(DragEventArgs e)
+        {
+            var rel = e.Data?.Get(MediaDropFormat) as string;
+            Services.DndLog.W($"TGT DragOver/Drop payload='{rel}'");
+            if (string.IsNullOrEmpty(rel)) return null;
+
+            var media = _session.CurrentProject?.Media;
+            if (media == null) return null;
+
+            var entry = media.FirstOrDefault(m => m.RelativePath == rel)
+                ?? media.FirstOrDefault(m => m.RelativePath.Equals(rel, StringComparison.OrdinalIgnoreCase))
+                ?? media.FirstOrDefault(m =>
+                    string.Equals(IOPath.GetFileName(m.RelativePath), IOPath.GetFileName(rel), StringComparison.OrdinalIgnoreCase));
+
+            if (entry == null)
+                Services.DndLog.W($"TGT lookup FAILED for '{rel}' over {media.Count} entries");
+            return entry;
+        }
 
         private void OnTimelineDragOver(object? sender, DragEventArgs e) =>
             e.DragEffects = EntryFromDrop(e) != null ? DragDropEffects.Copy : DragDropEffects.None;
@@ -998,8 +1074,10 @@ namespace MirrorStudio.App.Workspaces
         {
             var entry = EntryFromDrop(e);
             var tl = Tl;
-            if (entry == null || tl == null || !_session.HasProject) return;
+            if (entry == null) { Services.DndLog.W("TGT timeline drop ignored: no entry"); return; }
+            if (tl == null || !_session.HasProject) { Services.DndLog.W("TGT timeline drop ignored: no timeline/project"); return; }
 
+            Services.DndLog.W($"TGT timeline drop entry='{entry.FileName}' type={entry.MediaType}");
             var p = e.GetPosition(ClipsCanvas);
             double t = Math.Max(0, p.X / Pps);
             int row = (int)Math.Clamp(p.Y / TrackHeight, 0, 7);
@@ -1035,6 +1113,7 @@ namespace MirrorStudio.App.Workspaces
             clip.StartTime = pos;
 
             _undo.Execute(new Services.AddClipCommand(tl, clip));   // undoable
+            Services.DndLog.W($"TGT clip added '{clip.Name}' track={clip.TrackKind}#{clip.TrackIndex} start={clip.StartTime:F2} dur={clip.Duration:F2}");
             _session.SetPlayhead(clip.StartTime);
             _session.SelectClip(clip);
             RebuildTimeline();
@@ -1042,6 +1121,305 @@ namespace MirrorStudio.App.Workspaces
 
         private void OnPreviewDragOver(object? sender, DragEventArgs e) =>
             e.DragEffects = EntryFromDrop(e) != null ? DragDropEffects.Copy : DragDropEffects.None;
+
+        private void OnBrowserFileDragOver(object? sender, DragEventArgs e) =>
+            e.DragEffects = e.Data?.Contains(DataFormats.Files) == true
+                ? DragDropEffects.Copy : DragDropEffects.None;
+
+        private async void OnBrowserFileDrop(object? sender, DragEventArgs e)
+        {
+            if (!_session.HasProject) { Services.DndLog.W("TGT browser file drop ignored: no project"); return; }
+            var paths = e.Data?.GetFiles()
+                ?.Select(f => f.TryGetLocalPath())
+                .Where(p => !string.IsNullOrEmpty(p))
+                .Cast<string>()
+                .ToArray();
+            Services.DndLog.W($"TGT browser file drop n={paths?.Length ?? 0}");
+            if (paths is { Length: > 0 })
+                await ImportFilesAsync(paths);
+        }
+
+        // ============ Milestone 11: text / graphics / subtitles ============
+
+        private bool _updatingGfxInspector;
+
+        private void InitGraphicsPanel()
+        {
+            GFontCombo.ItemsSource = FontCombo.ItemsSource;
+            GAnimIn.ItemsSource = MirrorStudio.Graphics.AnimationPresets.Entrance;
+            GAnimOut.ItemsSource = MirrorStudio.Graphics.AnimationPresets.Exit;
+            SubPresetCombo.ItemsSource = GfxTemplates.CaptionTemplate.Presets();
+        }
+
+        private List<GfxModels.GraphicLayer> Graphics =>
+            _session.CurrentProject?.Graphics ?? [];
+
+        private void OnSafeAreasToggled(object? sender, RoutedEventArgs e)
+        {
+            bool on = SafeAreasChk.IsChecked == true;
+            ActionSafeRect.IsVisible = on;
+            TitleSafeRect.IsVisible = on;
+        }
+
+        // ---------- graphics layers ----------
+
+        private void RefreshGraphicsList()
+        {
+            var keep = SelectedGraphic()?.Id;
+            GraphicsList.ItemsSource = null;
+            GraphicsList.ItemsSource = Graphics;
+            var again = Graphics.FirstOrDefault(g => g.Id == keep);
+            if (again != null) GraphicsList.SelectedItem = again;
+        }
+
+        private GfxModels.GraphicLayer? SelectedGraphic() =>
+            GraphicsList?.SelectedItem as GfxModels.GraphicLayer;
+
+        private void OnGraphicSelected(object? sender, SelectionChangedEventArgs e) => PopulateGfxInspector();
+
+        private void PopulateGfxInspector()
+        {
+            _updatingGfxInspector = true;
+            try
+            {
+                var g = SelectedGraphic();
+                bool hasText = g is GfxModels.TextLayer;
+                GContentBox.IsEnabled = g == null || hasText;
+                GContentBox.Text = (g as GfxModels.TextLayer)?.Text ?? "";
+                var style = (g as GfxModels.TextLayer)?.Style;
+                GFontSizeB.Value = (decimal)(style?.FontSize ?? 48);
+                GBoldTgl.IsChecked = style?.Bold ?? false;
+                GItalicTgl.IsChecked = style?.Italic ?? false;
+                GAlignCombo.SelectedIndex = style?.Alignment switch
+                {
+                    "Left" => 0, "Right" => 2, _ => 1
+                };
+                GShadowChk.IsChecked = (style?.ShadowOpacity ?? 0) > 0.01;
+                GFillBox.Text = style?.FillColor
+                    ?? (g as GfxModels.ShapeLayer)?.FillColor
+                    ?? "#FFFFFF";
+                GPosX.Value = (decimal)(g?.PositionX ?? 0);
+                GPosY.Value = (decimal)(g?.PositionY ?? 0);
+                GOpacitySlider.Value = (g?.Opacity ?? 1) * 100.0;
+                GLayerDurB.Value = (decimal)Math.Max(0.5, g?.Duration ?? 5);
+                GAnimIn.SelectedItem = g?.AnimationIn ?? "";
+                GAnimOut.SelectedItem = g?.AnimationOut ?? "";
+                if (!string.IsNullOrEmpty(style?.FontFamily))
+                {
+                    var match = (GFontCombo.ItemsSource as System.Collections.IEnumerable)?
+                        .Cast<string?>().FirstOrDefault(f => f == style.FontFamily);
+                    if (match != null) GFontCombo.SelectedItem = match;
+                }
+            }
+            finally { _updatingGfxInspector = false; }
+        }
+
+        private void ApplyGfxInspector()
+        {
+            if (_updatingGfxInspector) return;
+            var g = SelectedGraphic();
+            if (g == null) return;
+
+            if (g is GfxModels.TextLayer t)
+            {
+                t.Text = GContentBox.Text;
+                t.Style.FontFamily = GFontCombo.SelectedValue as string ?? t.Style.FontFamily;
+                t.Style.FontSize = (double)GFontSizeB.Value;
+                t.Style.Bold = GBoldTgl.IsChecked == true;
+                t.Style.Italic = GItalicTgl.IsChecked == true;
+                t.Style.Alignment = GAlignCombo.SelectedIndex switch
+                {
+                    0 => "Left", 2 => "Right", _ => "Center"
+                };
+                t.Style.FillColor = string.IsNullOrWhiteSpace(GFillBox.Text) ? "#FFFFFF" : GFillBox.Text.Trim();
+                t.Style.ShadowOpacity = GShadowChk.IsChecked == true ? 0.8 : 0;
+            }
+            else if (g is GfxModels.ShapeLayer s)
+            {
+                s.FillColor = string.IsNullOrWhiteSpace(GFillBox.Text) ? "#FFFFFF" : GFillBox.Text.Trim();
+            }
+
+            g.PositionX = (double)GPosX.Value;
+            g.PositionY = (double)GPosY.Value;
+            g.Opacity = Math.Clamp(GOpacitySlider.Value / 100.0, 0, 1);
+            g.Duration = Math.Max(0.1, (double)GLayerDurB.Value);
+            g.AnimationIn = GAnimIn.SelectedValue as string ?? "";
+            g.AnimationOut = GAnimOut.SelectedValue as string ?? "";
+
+            _session.NotifyChanged();
+            RenderPreviewFrame();
+        }
+
+        private void OnGfxEditApplied(object? sender, RoutedEventArgs e) => ApplyGfxInspector();
+
+        private void OnGfxNum(object? sender, NumericUpDownValueChangedEventArgs e) => ApplyGfxInspector();
+        private void OnGfxRange(object? sender, RangeBaseValueChangedEventArgs e) => ApplyGfxInspector();
+        private void OnGfxSelChanged(object? sender, SelectionChangedEventArgs e) => ApplyGfxInspector();
+
+        private void OnGfxEditAppliedLost(object? sender, RoutedEventArgs e) => ApplyGfxInspector();
+
+        private int ProjW => _session.CurrentProject?.Width ?? 1920;
+        private int ProjH => _session.CurrentProject?.Height ?? 1080;
+
+        private void OnAddGfxTitle(object? sender, RoutedEventArgs e)
+        {
+            if (!_session.HasProject) return;
+
+            var layer = new GfxModels.TextLayer
+            {
+                Name = "Title",
+                Text = !string.IsNullOrWhiteSpace(TitleTextBox.Text) ? TitleTextBox.Text : "TITLE",
+                Start = _session.PlayheadSeconds,
+                Duration = 5,
+                PositionX = ProjW / 2.0,
+                PositionY = ProjH / 2.0,
+                AnimationIn = "Fade In",
+                AnimationOut = "Fade Out"
+            };
+            layer.Style.FontSize = Math.Max(36, ProjH * 0.09);
+
+            Graphics.Add(layer);
+            AfterGraphicsMutation(layer);
+        }
+
+        private void OnAddLowerThird(object? sender, RoutedEventArgs e)
+        {
+            if (!_session.HasProject) return;
+
+            var tpl = new GfxTemplates.LowerThirdTemplate
+            {
+                Name = string.IsNullOrWhiteSpace(LtNameBox.Text) ? "NAME SURNAME" : LtNameBox.Text,
+                Subtitle = string.IsNullOrWhiteSpace(LtRoleBox.Text) ? "Role / Title" : LtRoleBox.Text,
+                AccentColor = "#4FC3F7",
+                Duration = 5
+            };
+            foreach (var l in tpl.Create(ProjW, ProjH))
+            {
+                l.Start = _session.PlayheadSeconds;
+                Graphics.Add(l);
+            }
+            AfterGraphicsMutation(null);
+        }
+
+        private void OnDeleteGraphic(object? sender, RoutedEventArgs e)
+        {
+            var g = SelectedGraphic();
+            if (g == null) return;
+            Graphics.Remove(g);
+            AfterGraphicsMutation(null);
+        }
+
+        private void AfterGraphicsMutation(GfxModels.GraphicLayer? select)
+        {
+            _session.NotifyChanged();
+            RefreshGraphicsList();
+            if (select != null) GraphicsList.SelectedItem = select;
+            RenderPreviewFrame();
+        }
+
+        // ---------- subtitles ----------
+
+        private static string CleanFileName(string s)
+        {
+            foreach (var c in System.IO.Path.GetInvalidFileNameChars()) s = s.Replace(c, '_');
+            return s;
+        }
+
+        private GfxSubs.SubtitleTrack CurrentTrack()
+        {
+            var tracks = _session.CurrentProject!.SubtitleTracks;
+            if (tracks.Count == 0) tracks.Add(new GfxSubs.SubtitleTrack());
+            return tracks[0];
+        }
+
+        private void RefreshSubs()
+        {
+            if (!_session.HasProject) { SubList.ItemsSource = null; return; }
+            var items = CurrentTrack().Items;
+            items.Sort((a, b) => a.Start.CompareTo(b.Start));
+            CurrentTrack().Renumber();
+            SubList.ItemsSource = null;
+            SubList.ItemsSource = items;
+        }
+
+        private async Task ImportSubtitlesAsync(string ext)
+        {
+            if (!_session.HasProject) return;
+            var win = TopLevel.GetTopLevel(this) as Window;
+            if (win == null) return;
+
+            var file = await new Services.DialogService(win).PickFileAsync(
+                $"Import .{ext}", ("Subtitles", new[] { ext }));
+            if (string.IsNullOrEmpty(file) || !File.Exists(file)) return;
+
+            try
+            {
+                var content = await File.ReadAllTextAsync(file);
+                var track = ext switch
+                {
+                    "vtt" => GfxSubs.VttParser.Parse(content),
+                    "ass" => GfxSubs.AssParser.Parse(content),
+                    _ => GfxSubs.SrtParser.Parse(content)
+                };
+                CurrentTrack().Items.AddRange(track.Items);
+                if (track.Style != null && CurrentTrack().Style == null)
+                    CurrentTrack().Style = track.Style;
+                CurrentTrack().Renumber();
+
+                _session.NotifyChanged();
+                RefreshSubs();
+            }
+            catch (Exception ex)
+            {
+                await MessageBox.Show(win, "Subtitle Import Failed", ex.Message);
+            }
+        }
+
+        private void OnImportSrt(object? sender, RoutedEventArgs e) => _ = ImportSubtitlesAsync("srt");
+        private void OnImportVtt(object? sender, RoutedEventArgs e) => _ = ImportSubtitlesAsync("vtt");
+        private void OnImportAss(object? sender, RoutedEventArgs e) => _ = ImportSubtitlesAsync("ass");
+
+        private async void OnExportSrt(object? sender, RoutedEventArgs e)
+        {
+            if (!_session.HasProject) return;
+            var win = TopLevel.GetTopLevel(this) as Window;
+            if (win == null) return;
+
+            var path = await new Services.DialogService(win).SaveFileAsync(
+                "Export SRT", CleanFileName(_session.CurrentProject!.Name) + ".srt",
+                ("SubRip", new[] { "srt" }));
+            if (string.IsNullOrEmpty(path)) return;
+
+            await File.WriteAllTextAsync(path, GfxSubs.SrtParser.Write(CurrentTrack()));
+        }
+
+        private void OnAddSubtitleCue(object? sender, RoutedEventArgs e)
+        {
+            if (!_session.HasProject) return;
+            var sub = new GfxSubs.Subtitle
+            {
+                Start = TimeSpan.FromSeconds(_session.PlayheadSeconds),
+                End = TimeSpan.FromSeconds(_session.PlayheadSeconds + 2),
+                Text = ""
+            };
+            CurrentTrack().Items.Add(sub);
+            _session.NotifyChanged();
+            RefreshSubs();
+            SubList.SelectedItem = sub;
+        }
+
+        private void OnSubtitleSelected(object? sender, SelectionChangedEventArgs e)
+        {
+            if (SubList.SelectedItem is GfxSubs.Subtitle sub)
+                _session.SetPlayhead(Math.Max(0, sub.Start.TotalSeconds));
+        }
+
+        private void OnSubPresetChanged(object? sender, SelectionChangedEventArgs e)
+        {
+            if (!_session.HasProject || SubPresetCombo.SelectedItem is not GfxTemplates.CaptionTemplate tpl) return;
+            tpl.ApplyTo(CurrentTrack());
+            _session.NotifyChanged();
+        }
 
         private void OnPreviewDrop(object? sender, DragEventArgs e)
         {
@@ -1157,7 +1535,7 @@ namespace MirrorStudio.App.Workspaces
             if (_playTimer == null) return;
             StartEngineClock();
             _playTimer.Start();
-            if (PlayBtn != null) PlayBtn.Content = "⏸ Pause";
+            if (PlayBtn != null) PlayBtn.Content = "â¸ Pause";
         }
 
         private async void StartEngineClock()
@@ -1171,7 +1549,7 @@ namespace MirrorStudio.App.Workspaces
             _playTimer?.Stop();
             Playback.Pause();
             PlaybackVm.IsPlaying = false;
-            if (PlayBtn != null) PlayBtn.Content = "▶ Play";
+            if (PlayBtn != null) PlayBtn.Content = "â–¶ Play";
         }
 
         private void OnPlayPause(object? sender, RoutedEventArgs e)
@@ -1200,7 +1578,7 @@ namespace MirrorStudio.App.Workspaces
 
         private void OnRecordMark(object? sender, RoutedEventArgs e)
         {
-            RecordBtn.Content = RecordBtn.Content as string == "●" ? "◼" : "●";
+            RecordBtn.Content = RecordBtn.Content as string == "â—" ? "â—¼" : "â—";
             RecordBtn.Foreground = RecordBtn.Foreground == Brushes.Red ? Brushes.White : Brushes.Red;
         }
 
@@ -1245,6 +1623,13 @@ namespace MirrorStudio.App.Workspaces
             var tl = Tl;
             double t = _session.PlayheadSeconds;
 
+            // Milestone 11: text/shapes/images overlays follow the playhead
+            _graphicsRenderer?.Update(
+                _session.CurrentProject?.Graphics,
+                t,
+                _session.CurrentProject?.Width ?? 1920,
+                _session.CurrentProject?.Height ?? 1080);
+
             var active = tl?.Clips
                 .Where(c => c.TrackKind == TrackKind.Video && t >= c.StartTime && t < c.StartTime + c.Duration)
                 .OrderByDescending(c => c.TrackIndex)
@@ -1272,11 +1657,11 @@ namespace MirrorStudio.App.Workspaces
                 else if (active.MediaType == "Video")
                 {
                     // real frame at the playhead, extracted by ffmpeg (async, cached)
-                    // timeline position → source timestamp via SourceTimeCalculator
+                    // timeline position â†’ source timestamp via SourceTimeCalculator
                     double sourceTime = MirrorStudio.Timeline.Services.SourceTimeCalculator
                         .GetSourceTime(t, active.StartTime, active.InPoint);
 
-                    // preview quality → decode height (export always uses originals)
+                    // preview quality â†’ decode height (export always uses originals)
                     int? decodeHeight = null;
                     var entry = (_session.CurrentProject?.Media ?? new List<MediaEntry>())
                         .FirstOrDefault(m => m.RelativePath == active.SourcePath);
@@ -1307,7 +1692,16 @@ namespace MirrorStudio.App.Workspaces
             {
                 _previewRenderer?.Clear();
                 VideoPlaceText.IsVisible = true;
-                VideoPlaceText.Text = active.MediaType == "Title" ? active.Title?.Text ?? "" : $"▶ {active.Name}\n(extracting frame...)";
+                if (active.MediaType == "Video" && !IsFfmpegAvailable(out var ffmpegReason))
+                {
+                    VideoPlaceText.Text = "â–¶ Video preview needs ffmpeg.\n" +
+                        $"ffmpeg not runnable: {ffmpegReason}\n" +
+                        "Fix: run 'ffmpeg -version' in THIS terminal, or drop\nffmpeg.exe + ffprobe.exe + its .dlls into the app's\nRuntime/FFmpeg folder.";
+                }
+                else
+                {
+                    VideoPlaceText.Text = active.MediaType == "Title" ? active.Title?.Text ?? "" : $"â–¶ {active.Name}\n(extracting frame...)";
+                }
             }
 
             // transform
@@ -1323,7 +1717,8 @@ namespace MirrorStudio.App.Workspaces
             double dipOverlay = 0;
             Color dipColor = Colors.Black;
 
-            if (active.TransitionIn.Kind != TransitionKind.Cut)
+            var transitionIn = active.TransitionIn;   // null = Cut (legacy data)
+            if (transitionIn != null && transitionIn.Kind != TransitionKind.Cut)
             {
                 var prev = tl!.Clips.FirstOrDefault(c => c.TrackKind == TrackKind.Video
                     && c.TrackIndex == active.TrackIndex
@@ -1335,7 +1730,7 @@ namespace MirrorStudio.App.Workspaces
                     if (window > 0.01 && t < active.StartTime + window)
                     {
                         double prog = (t - active.StartTime) / window;
-                        switch (active.TransitionIn.Kind)
+                        switch (transitionIn.Kind)
                         {
                             case TransitionKind.Fade:
                             case TransitionKind.CrossDissolve:
@@ -1421,7 +1816,7 @@ namespace MirrorStudio.App.Workspaces
         private const double FrameGranularity = 0.25;   // seconds between cached frames
         private const int MaxCachedFrames = 240;
 
-        // preview quality (Full/Half/Quarter/Proxy) — export always uses originals
+        // preview quality (Full/Half/Quarter/Proxy) â€” export always uses originals
         private MirrorStudio.Core.Enums.PreviewQuality _previewQuality = MirrorStudio.Core.Enums.PreviewQuality.Full;
 
         // one decoder per media file, reused across frames (probe once, decode many)
@@ -1433,6 +1828,38 @@ namespace MirrorStudio.App.Workspaces
             _previewQuality = (MirrorStudio.Core.Enums.PreviewQuality)Math.Clamp(QualityCombo.SelectedIndex, 0, 3);
             _frameCache.Clear();   // frames at the old scale are stale
             RenderPreviewFrame();
+        }
+
+        private bool IsFfmpegAvailable(out string? reason)
+        {
+            reason = null;
+            try
+            {
+                var exe = MirrorStudio.Video.Services.MediaEngineLocator.ResolveFfmpeg(_session.Settings.FFmpegPath);
+                var psi = new ProcessStartInfo
+                {
+                    FileName = exe,
+                    Arguments = "-version",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using var proc = Process.Start(psi);
+                if (proc == null) { reason = $"cannot start {exe}"; return false; }
+                var errTask = proc.StandardError.ReadToEndAsync();
+                var outTask = proc.StandardOutput.ReadToEndAsync();
+                proc.WaitForExit(5000);
+                if (proc.ExitCode == 0) return true;
+                var detail = (errTask.Result ?? outTask.Result ?? "").Trim().Replace("\r", "").Split('\n')[0];
+                reason = $"exit {proc.ExitCode}: {detail}";
+                return false;
+            }
+            catch (Exception ex)
+            {
+                reason = ex.Message;
+                return false;
+            }
         }
 
         private Bitmap? GetOrRequestVideoFrame(string absPath, double sourceTime) =>
@@ -1511,7 +1938,7 @@ namespace MirrorStudio.App.Workspaces
             });
         }
 
-        /// <summary>BGRA bytes → Avalonia WriteableBitmap (zero-copy lock blit).</summary>
+        /// <summary>BGRA bytes â†’ Avalonia WriteableBitmap (zero-copy lock blit).</summary>
         private static Bitmap? FrameToBitmap(MirrorStudio.Rendering.Models.VideoFrame f)
         {
             try
@@ -1778,7 +2205,7 @@ namespace MirrorStudio.App.Workspaces
             var clip = _session.SelectedClip;
             if (clip == null || PosXB == null) return;
 
-            // snapshot → apply → record as one undoable step
+            // snapshot â†’ apply â†’ record as one undoable step
             var cmd = new Services.PropertySetCommand(clip)
                 .Track(nameof(ClipModel.PositionX), clip.PositionX, Num(PosXB))
                 .Track(nameof(ClipModel.PositionY), clip.PositionY, Num(PosYB))
@@ -1813,7 +2240,7 @@ namespace MirrorStudio.App.Workspaces
             var tl = Tl;
             double fps = Math.Max(1, _session.CurrentProject?.FrameRate ?? 30);
 
-            // undo/redo first — Ctrl+Z, Ctrl+Shift+Z (and Ctrl+Y)
+            // undo/redo first â€” Ctrl+Z, Ctrl+Shift+Z (and Ctrl+Y)
             if (e.Key == Key.Z && e.KeyModifiers.HasFlag(KeyModifiers.Control))
             {
                 if (e.KeyModifiers.HasFlag(KeyModifiers.Shift)) RedoEdit();
@@ -1906,12 +2333,12 @@ namespace MirrorStudio.App.Workspaces
                 }
 
                 default:
-                    return;   // not handled — let it bubble
+                    return;   // not handled â€” let it bubble
             }
             e.Handled = true;
         }
 
-        /// <summary>Edit ▸ Undo / Ctrl+Z entry point.</summary>
+        /// <summary>Edit â–¸ Undo / Ctrl+Z entry point.</summary>
         public bool UndoEdit()
         {
             if (!_undo.CanUndo) return false;
@@ -1923,7 +2350,7 @@ namespace MirrorStudio.App.Workspaces
             return true;
         }
 
-        /// <summary>Edit ▸ Redo / Ctrl+Shift+Z / Ctrl+Y entry point.</summary>
+        /// <summary>Edit â–¸ Redo / Ctrl+Shift+Z / Ctrl+Y entry point.</summary>
         public bool RedoEdit()
         {
             if (!_undo.CanRedo) return false;
@@ -1961,7 +2388,7 @@ namespace MirrorStudio.App.Workspaces
             var tl = Tl;
             InspSeqText.Text = proj == null
                 ? "No project loaded"
-                : $"{proj.Width}×{proj.Height} @ {proj.FrameRate:0.###} fps ({proj.AspectRatio})\n" +
+                : $"{proj.Width}Ã—{proj.Height} @ {proj.FrameRate:0.###} fps ({proj.AspectRatio})\n" +
                   $"Tracks: {TimelineData.VideoTrackCount}V + {TimelineData.AudioTrackCount}A\n" +
                   $"Clips: {tl?.Clips.Count ?? 0}   Duration: {(tl?.SequenceDuration ?? 0):0.0#}s\n" +
                   $"Export default: {proj.DefaultExportFormat}";
@@ -1977,6 +2404,11 @@ namespace MirrorStudio.App.Workspaces
         }
     }
 }
+
+
+
+
+
 
 
 

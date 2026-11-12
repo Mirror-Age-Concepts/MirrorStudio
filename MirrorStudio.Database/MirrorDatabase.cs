@@ -231,9 +231,9 @@ CREATE INDEX IF NOT EXISTS IX_Effects_Clip ON Effects(ClipId);
                         _db.Execute("INSERT INTO Effects(ClipId,Type,Amount,SortOrder) VALUES(?,?,?,?)",
                             c.Id, fx.Type, fx.Amount, order++);
 
-                    if (c.TransitionIn.Kind != TransitionKind.Cut)
+                    if (c.TransitionIn is { } tin && tin.Kind != TransitionKind.Cut)
                         _db.Execute("INSERT INTO Transitions(ClipId,Kind,DurationSec) VALUES(?,?,?)",
-                            c.Id, c.TransitionIn.Kind.ToString(), 0);
+                            c.Id, tin.Kind.ToString(), 0);
 
                     if (c.Title != null)
                         _db.Execute(@"INSERT INTO TextElements(ClipId,Text,FontFamily,FontSize,Bold,Italic,Alignment,X,Y,ColorHex,Opacity,Shadow,Outline)

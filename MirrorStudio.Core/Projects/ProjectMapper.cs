@@ -1,3 +1,4 @@
+using System.Text.Json;
 using MirrorStudio.Core.Models;
 
 namespace MirrorStudio.Core.Projects;
@@ -29,6 +30,10 @@ public static class ProjectMapper
             CreatedAt = source.CreatedAt,
             ModifiedAt = source.UpdatedAt,
         };
+
+        // ---------- graphics + subtitles (Milestone 11) ----------
+        project.GraphicsJson = JsonSerializer.Serialize(source.Graphics);
+        project.SubtitlesJson = JsonSerializer.Serialize(source.SubtitleTracks);
 
         // ---------- media references ----------
         var mediaIdByPath = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
@@ -256,9 +261,9 @@ public static class ProjectMapper
             _ => TransitionKind.Cut,
         };
 
-        return k == TransitionKind.Cut
-            ? null
-            : new ClipTransition { Kind = k, DurationSeconds = durationSec > 0 ? durationSec : 0.5 };
+        // normalize to a Cut instance rather than null so downstream
+        // consumers can rely on a non-null transition (see RenderPreviewFrame)
+        return new ClipTransition { Kind = k, DurationSeconds = Math.Max(0.05, durationSec) };
     }
 
     public static TimeSpan TotalDuration(Project project) =>
@@ -333,6 +338,21 @@ public static class ProjectMapper
                 FrameRate = media.FrameRate,
                 Probed = media.Duration > 0,
             });
+        }
+
+        // ---------- graphics + subtitles (Milestone 11) ----------
+        try
+        {
+            model.Graphics.AddRange(
+                JsonSerializer.Deserialize<List<MirrorStudio.Graphics.Models.GraphicLayer>>(source.GraphicsJson)
+                    ?? []);
+            model.SubtitleTracks.AddRange(
+                JsonSerializer.Deserialize<List<MirrorStudio.Graphics.Subtitles.SubtitleTrack>>(source.SubtitlesJson)
+                    ?? []);
+        }
+        catch (JsonException)
+        {
+            // corrupt graphics payload must never block project load
         }
 
         return model;
